@@ -1,0 +1,14 @@
+一、上传插件到网站根目录
+二、插件启用：
+1、登录后台
+2、点击----自定义快捷菜单----
+在最后一行增加 
+牛牛助手,auto/index
+点击保存 刷新页面开始使用插件
+3、点击牛牛助手 输入任意数字 选择参数进行安装
+三、无须设置token  安装时候字段生成随机token  
+四、手动替换----根据自身需求 选择 API替换或者sql语句【推荐phpmyadmin执行 注意超时时间】
+五、插件卸载【暂不支持一键卸载】
+1、删除目录 niuniuzs
+2、删除文件 application/admin/controller/Auto.php
+3、删除文件 application/api/controller/Auto.php

@@ -3,8 +3,8 @@ body, html {
     padding: 0;
     width: 100%;
     height: 100%;
-    background-color: #0f1622;
-    color: white;
+    background-color: #f0f9ff;
+    color: #1e293b;
     padding-top: 37px;
 }
 
@@ -22,7 +22,7 @@ body, html {
     width: 100vw;
     z-index: 9000 !important;
     pointer-events: auto !important;
-    background: #111;
+    background: #ffffff;
 }
 
 #homeButton { 
@@ -40,7 +40,7 @@ body, html {
     width: 100% !important;
     height: auto !important;
     aspect-ratio: 16/9 !important;
-    background-color: #1f2937 !important;
+    background-color: #e0f2fe !important;
     position: relative !important;
     display: block !important;
     border-radius: 8px !important;
@@ -52,7 +52,7 @@ body, html {
     height: 0 !important;
     padding-bottom: 56.25% !important;
     position: relative !important;
-    background-color: #1f2937 !important;
+    background-color: #e0f2fe !important;
     border-radius: 8px !important;
     overflow: hidden !important;
     display: block !important;
@@ -65,39 +65,12 @@ body, html {
     width: 100% !important;
     height: 100% !important;
     display: flex !important;
-    flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
-    background-color: rgba(17, 24, 39, 0.7) !important;
+    background-color: rgba(0, 0, 0, 0.4) !important;
+    backdrop-filter: blur(4px) !important;
+    z-index: 50 !important;
 }
-
-.player-loading-spinner {
-    width: 48px !important;
-    height: 48px !important;
-    border: 4px solid rgba(255, 255, 255, 0.1) !important;
-    border-radius: 50% !important;
-    border-top-color: #f97316 !important;
-    position: relative !important;
-    margin-bottom: 16px !important;
-    animation: spin 1s linear infinite !important;
-}
-
-/* Critical styles for loading text */
-.player-loading-text,
-.player-loading-overlay div:nth-child(2),
-div.player-loading-text {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    color: #f9fafb !important;
-    font-size: 16px !important;
-    font-weight: 500 !important;
-    margin-bottom: 8px !important;
-    text-align: center !important;
-    font-family: system-ui, -apple-system, sans-serif !important;
-    line-height: 1.4 !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
-    pointer-events: none !important;
     z-index: 100 !important;
     background: transparent !important;
     max-width: 90% !important;
@@ -157,20 +130,83 @@ div.player-loading-text {
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: rgba(0, 0, 0, 0.7);
-    color: white;
+    background-color: rgba(0, 0, 0, 0.4);
     z-index: 100;
-    flex-direction: column;
+    backdrop-filter: blur(4px);
 }
 
-.loading-spinner {
-    width: 50px;
-    height: 50px;
-    border: 4px solid rgba(255, 255, 255, 0.3);
+.loading-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.loading-spinner-box {
+    position: relative;
+    width: 64px;
+    height: 64px;
+}
+
+.loading-ring-bg {
+    width: 64px;
+    height: 64px;
+    border: 4px solid #e0f2fe;
     border-radius: 50%;
-    border-top-color: white;
-    animation: spin 1s ease-in-out infinite;
-    margin-bottom: 10px;
+}
+
+.loading-ring-spin {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 64px;
+    height: 64px;
+    border: 4px solid transparent;
+    border-top-color: #0ea5e9;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loading-ring-inner {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 48px;
+    height: 48px;
+    border: 4px solid transparent;
+    border-bottom-color: #67e8f9;
+    border-radius: 50%;
+    animation: spin-reverse 1s linear infinite;
+}
+
+.loading-text-box {
+    text-align: center;
+}
+
+.loading-text-main {
+    color: #0284c7;
+    font-weight: 500;
+    font-size: 1.125rem;
+    margin-bottom: 4px;
+}
+
+.loading-text-sub {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+/* 反向旋转动画 */
+@keyframes spin-reverse {
+    from {
+        transform: rotate(360deg);
+    }
+    to {
+        transform: rotate(0deg);
+    }
+}
+
+.animate-spin-reverse {
+    animation: spin-reverse 1s linear infinite;
 }
 
 .error-container {
@@ -182,8 +218,8 @@ div.player-loading-text {
     display: none;
     align-items: center;
     justify-content: center;
-    background-color: rgba(0, 0, 0, 0.7);
-    color: white;
+    background-color: rgba(15, 23, 42, 0.4);
+    color: #f9fafb;
     z-index: 100;
     flex-direction: column;
     text-align: center;
@@ -201,9 +237,36 @@ div.player-loading-text {
     color: #aaa;
 }
 
+/* 集数按钮 - 浅色风格 */
+#episodesList button,
+#episodesGrid button {
+    background: #f0f9ff;
+    border: 1px solid #e0f2fe;
+    color: #0284c7;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    transition: all 0.15s ease;
+    min-width: 48px;
+}
+
+#episodesList button:hover,
+#episodesGrid button:hover {
+    background: #e0f2fe;
+    border-color: #7dd3fc;
+}
+
 .episode-active {
-    background-color: #3b82f6 !important;
-    border-color: #60a5fa !important;
+    background-color: #0ea5e9 !important;
+    border-color: #0ea5e9 !important;
+    color: white !important;
+}
+
+/* 集数列表容器 */
+#episodesList {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+    gap: 0.5rem;
 }
 
 .episode-grid {
@@ -211,16 +274,18 @@ div.player-loading-text {
     overflow-y: auto;
 }
 
-/* 恢复播放位置提示样式 */
+/* 恢复播放位置提示样式 - 浅色版 */
 .position-restore-hint {
     position: fixed;
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%) translateY(100%);
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
+    background-color: rgba(255, 255, 255, 0.95);
+    color: #334155;
     padding: 10px 20px;
-    border-radius: 4px;
+    border-radius: 12px;
+    border: 1px solid #e0f2fe;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     z-index: 1000;
     transition: transform 0.3s ease;
     font-size: 14px;
@@ -256,7 +321,7 @@ div.player-loading-text {
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: #333;
+    background-color: #cbd5e1;
     transition: .4s;
     border-radius: 24px;
 }
@@ -274,24 +339,26 @@ div.player-loading-text {
 }
 
 input:checked + .slider {
-    background-color: #00ccff;
+    background-color: #0ea5e9;
 }
 
 input:checked + .slider:before {
     transform: translateX(22px);
 }
 
-/* 添加快捷键提示样式 */
+/* 快捷键提示样式 - 浅色版 */
 .shortcut-hint {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
+    background-color: rgba(255, 255, 255, 0.95);
+    color: #334155;
     padding: 1rem 2rem;
-    border-radius: 0.5rem;
-    font-size: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid #e0f2fe;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    font-size: 1.25rem;
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -392,4 +459,31 @@ input:checked + .slider:before {
 /* 隐藏用户名输入框 */
 #username {
     display: none !important;
+}
+
+/* 加载动画 */
+@keyframes spin-reverse {
+    from {
+        transform: rotate(360deg);
+    }
+    to {
+        transform: rotate(0deg);
+    }
+}
+
+@keyframes pulse-scale {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.02);
+    }
+}
+
+.animate-spin-reverse {
+    animation: spin-reverse 1.2s linear infinite;
+}
+
+.animate-pulse-scale {
+    animation: pulse-scale 2s ease-in-out infinite;
 }

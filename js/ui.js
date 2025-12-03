@@ -1,27 +1,4 @@
 // UI相关函数
-function toggleSettings(e) {
-    // 强化的密码保护校验 - 防止绕过
-    try {
-        if (window.ensurePasswordProtection) {
-            window.ensurePasswordProtection();
-        } else {
-            // 兼容性检查
-            if (window.isPasswordProtected && window.isPasswordVerified) {
-                if (window.isPasswordProtected() && !window.isPasswordVerified()) {
-                    showPasswordModal && showPasswordModal();
-                    return;
-                }
-            }
-        }
-    } catch (error) {
-        console.warn('Password protection check failed:', error.message);
-        return;
-    }
-    // 阻止事件冒泡，防止触发document的点击事件
-    e && e.stopPropagation();
-    const panel = document.getElementById('settingsPanel');
-    panel.classList.toggle('show');
-}
 
 // 改进的Toast显示函数 - 支持队列显示多个Toast
 const toastQueue = [];
@@ -288,13 +265,6 @@ function deleteSingleSearchHistory(query) {
 
 // 增加清除搜索历史功能
 function clearSearchHistory() {
-    // 密码保护校验
-    if (window.isPasswordProtected && window.isPasswordVerified) {
-        if (window.isPasswordProtected() && !window.isPasswordVerified()) {
-            showPasswordModal && showPasswordModal();
-            return;
-        }
-    }
     try {
         localStorage.removeItem(SEARCH_HISTORY_KEY);
         renderSearchHistory();
@@ -307,13 +277,6 @@ function clearSearchHistory() {
 
 // 历史面板相关函数
 function toggleHistory(e) {
-    // 密码保护校验
-    if (window.isPasswordProtected && window.isPasswordVerified) {
-        if (window.isPasswordProtected() && !window.isPasswordVerified()) {
-            showPasswordModal && showPasswordModal();
-            return;
-        }
-    }
     if (e) e.stopPropagation();
 
     const panel = document.getElementById('historyPanel');
@@ -323,12 +286,6 @@ function toggleHistory(e) {
         // 如果打开了历史记录面板，则加载历史数据
         if (panel.classList.contains('show')) {
             loadViewingHistory();
-        }
-
-        // 如果设置面板是打开的，则关闭它
-        const settingsPanel = document.getElementById('settingsPanel');
-        if (settingsPanel && settingsPanel.classList.contains('show')) {
-            settingsPanel.classList.remove('show');
         }
     }
 }
@@ -670,11 +627,12 @@ async function playFromHistory(url, title, episodeIndex, playbackPosition = 0) {
             playerUrl = playUrl.toString();
         }
 
-        showVideoPlayer(playerUrl);
+        // 直接跳转到播放页（不使用 iframe）
+        window.location.href = playerUrl;
     } catch (e) {
         // console.error('从历史记录播放失败:', e);
         const simpleUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&index=${episodeIndex}`;
-        showVideoPlayer(simpleUrl);
+        window.location.href = simpleUrl;
     }
 }
 
@@ -682,13 +640,6 @@ async function playFromHistory(url, title, episodeIndex, playbackPosition = 0) {
 // IMPORTANT: videoInfo passed to this function should include a 'showIdentifier' property
 // (ideally `${sourceName}_${vod_id}`), 'sourceName', and 'vod_id'.
 function addToViewingHistory(videoInfo) {
-    // 密码保护校验
-    if (window.isPasswordProtected && window.isPasswordVerified) {
-        if (window.isPasswordProtected() && !window.isPasswordVerified()) {
-            showPasswordModal && showPasswordModal();
-            return;
-        }
-    }
     try {
         const history = getViewingHistory();
 
@@ -776,21 +727,6 @@ function clearViewingHistory() {
         showToast('清除观看历史失败', 'error');
     }
 }
-
-// 更新toggleSettings函数以处理历史面板互动
-const originalToggleSettings = toggleSettings;
-toggleSettings = function(e) {
-    if (e) e.stopPropagation();
-
-    // 原始设置面板切换逻辑
-    originalToggleSettings(e);
-
-    // 如果历史记录面板是打开的，则关闭它
-    const historyPanel = document.getElementById('historyPanel');
-    if (historyPanel && historyPanel.classList.contains('show')) {
-        historyPanel.classList.remove('show');
-    }
-};
 
 // 点击外部关闭历史面板
 document.addEventListener('DOMContentLoaded', function() {

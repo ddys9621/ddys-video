@@ -1,0 +1,119 @@
+<header class="app-topbar">
+            <div class="page-container topbar-menu">
+                <div class="d-flex align-items-center gap-2">
+                    <a href="<?php echo url('auto/index');?>" ><img src="https://niuniuzs.com/niuniuzs/view/assets/images/logo-dark.png" alt="dark logo">
+                    </a>
+                    <!-- <button class="sidenav-toggle-button btn btn-secondary btn-icon">
+                        <i class="ti ti-menu-deep fs-24"></i>
+                    </button>
+                    <button class="topnav-toggle-button" data-bs-toggle="collapse" data-bs-target="#topnav-menu-content">
+                        <i class="ti ti-menu-deep fs-22"></i>
+                    </button>
+                     Search 
+                    <div class="topbar-search text-muted d-none d-xl-flex gap-2 align-items-center" data-bs-toggle="modal" data-bs-target="#searchModal" type="button">
+                        <i class="ti ti-search fs-18"></i>
+                        <span class="me-2">全网搜索资源</span>
+                        <button type="submit" class="ms-auto btn btn-sm btn-primary shadow-none">⌘K</span>
+                    </div>-->
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                     
+                    <div class="topbar-item">
+                        <div class="dropdown">
+                            <button class="topbar-link btn btn-outline-primary btn-icon dropdown-toggle drop-arrow-none" data-bs-toggle="dropdown" data-bs-offset="0,24" type="button" data-bs-auto-close="outside" aria-haspopup="false" aria-expanded="false">
+                                <i class="ti ti-bell animate-ring fs-22"></i>
+                                <span class="noti-icon-badge"></span>
+                            </button>
+
+                            <div class="dropdown-menu p-0 dropdown-menu-end dropdown-menu-lg" style="min-height: 300px;">
+                                <div class="p-3 border-bottom border-dashed">
+                                    <div class="row align-items-center">
+                                        <div class="col">
+                                            <h6 class="m-0 fs-16 fw-semibold"> 最新替换通知</h6>
+                                        </div>
+                                        <div class="col-auto">
+                                        </div>
+                                    </div> 
+                                </div>
+
+                                <div class="position-relative z-2 rounded-0" style="max-height: 300px;" data-simplebar>
+                                    
+                                    <?php if($replist) {foreach($replist as &$_rep) { ?>
+                                    <div class="dropdown-item notification-item py-2 text-wrap active" id="notification-<?php echo $_rep['sid'];?>">
+                                        <span class="d-flex align-items-center"> 
+                                            <span class="flex-grow-1 text-muted">
+                                                <span class="fw-medium text-body"><?php echo $_rep['sitename'];?></span>
+                                                <br />
+                                                <span class="fs-12"><a href="/api.php/auto/replace?token=<?php $token;?>&types=<?php echo $_rep['type'];?>&old=<?php echo $_rep['old'];?>&new=<?php echo $_rep['new'];?>" target="_blank" class="ms-auto btn btn-sm btn-info shadow-none">替换</a>----更新时间
+                                                <?php echo $_rep['addtime'];?></span>
+                                            </span>
+                                            <span class="notification-item-close">
+                                                <button type="button" class="btn btn-ghost-danger rounded-circle btn-sm btn-icon" data-dismissible="#notification-<?php echo $_rep['sid'];?>">
+                                                    <i class="ti ti-x fs-16"></i>
+                                                </button>
+                                            </span>
+                                        </span>
+                                    </div>
+                                    <?php }} else { ?>
+                                 暂无相关数据
+                                 <?php } ?>
+
+                                    
+                                </div> 
+                            </div>
+                        </div>
+                    </div>  
+                    
+                    <div class="topbar-item d-none d-sm-flex">
+                        <div class="dropdown">
+                            <button class="topbar-link btn btn-outline-primary btn-icon dropdown-toggle drop-arrow-none" data-bs-toggle="dropdown" data-bs-offset="0,24" type="button" aria-haspopup="false" aria-expanded="false">
+                                <i class="ti ti-apps fs-22"></i>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end dropdown-menu-lg p-0">
+                                <div class="p-2">
+                                    <div class="row g-0 text-start lh-lg">
+                                        <?php echo $version['updatelog'];?>
+                                      </div>  
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                     
+                    <div class="topbar-item d-none d-sm-flex">
+                        <button class="topbar-link btn btn-outline-primary btn-icon" id="light-dark-mode" type="button">
+                            <i class="ti ti-moon fs-22"></i>
+                        </button>
+                    </div> 
+                    <div class="topbar-item">
+                        <?php 
+                    if($version['macv10']!=$hostversion){
+                    $upuri=str_replace("/","",$GLOBALS['in_file']).'/admin/Auto/update?to='.$version['macv10'];
+                    echo '<a href="/'.$upuri.'" class="btn btn-sm btn-danger">升级新版</a>'; 
+                    }
+                    ?>  
+                       
+                    </div>
+                    <div class="topbar-item">
+                        <a target="_blank" href="/api.php/auto/test?token=<?php echo $token;?>" class="btn btn-sm btn-success">API检测</a> 
+                    </div>
+                    <div class="topbar-item">
+                        <a target="_blank" href="/api.php/auto/test?token=<?php echo $token;?>" class="btn btn-sm btn-secondary">定时任务</a> 
+                    </div>
+                </div>
+            </div>
+        </header>
+        <!-- Search Modal 
+        <div class="modal fade" id="searchModal" tabindex="-1" aria-labelledby="searchModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content bg-transparent">
+                    <div class="card mb-0 shadow-none">
+                        <div class="px-3 py-2 d-flex flex-row align-items-center" id="top-search">
+                            <i class="ti ti-search fs-22"></i>
+                            <input type="search" class="form-control border-0" id="search-modal-input" placeholder="请输入想查询的资源">
+                            <button type="button" class="btn p-0" data-bs-dismiss="modal" aria-label="Close">关闭</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>-->

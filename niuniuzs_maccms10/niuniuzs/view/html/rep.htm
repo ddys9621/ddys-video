@@ -1,0 +1,60 @@
+<?php include  ROOT_PATH.'niuniuzs/view/html/head.htm';?>
+<div class="page-content">
+    <div class="page-container">
+        <div class="row mt-3">
+            <?php include  ROOT_PATH.'niuniuzs/view/html/ad.htm';?>
+        </div> 
+        <div class="col-xl-12">
+            <div class="card">
+                <div class="card-header border-bottom border-dashed d-flex align-items-center">
+                    <h4 class="header-title">手动替换</h4>
+                </div>
+                <div class="card-body"> 
+                    <div class="table-responsive-sm">
+                        <table class="table table-bordered border-secondary mb-0">
+                            <thead class="table-dark"> 
+                                <tr>
+                                    <th width="50">编号</th>
+                                    <th width="150">名称</th> 
+                                    <th width="80">旧链接</th>
+                                    <th width="80">新链接</th>
+                                    <th width="80">时间</th>
+                                    <th width="80">类型</th>
+                                    <th width="100">替换</th>
+                                    <th width="500">sql替换</th>
+                                    
+                                </tr>
+                            </thead>
+                            <tbody> 
+                                {volist name="replist" id="vo"}
+            <tr>
+                <td>{$vo.sid}</td>
+                 <td>{$vo.sitename}</td> 
+                <td>{$vo.old}</td>
+                <td>{$vo.new}</td>
+                <td>{$vo.addtime}</td>
+                <td>{$vo.type}</td>
+                <td><a href="/api.php/auto/replace?token=<?php echo $token;?>&types={$vo.type}&old={$vo.old}&new={$vo.new}" target="_blank" class="btn btn-sm btn-info">API替换</button></td>
+                <td><?php
+               $types=$vo['type']; $old=$vo['old']; $new=$vo['new']; $pre = config('database.prefix');;
+                if($types=='play'){ 
+                
+                echo 'UPDATE ' . $pre . 'vod SET vod_url=REPLACE(vod_url, "' . $old . '", "' . $new . '")';
+                }
+                if($types=='img'){
+                echo 'UPDATE ' . $pre . 'vod SET vod_pic=REPLACE(vod_pic, "' . $old . '", "' . $new . '")';
+                }
+                ?></td>
+            </tr>
+            {/volist}
+                  
+                              </tbody>
+                        </table>
+                    </div>  
+                </div> 
+            </div> 
+        </div>
+    </div>
+    <?php include  ROOT_PATH.'niuniuzs/view/html/footer.htm';?>
+</div>
+<?php include  ROOT_PATH.'niuniuzs/view/html/foot.htm';?> 

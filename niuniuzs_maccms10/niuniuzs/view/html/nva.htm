@@ -1,0 +1,86 @@
+        <header class="topnav">
+            <nav class="navbar navbar-expand-lg">
+                <nav class="page-container">
+                    <div class="collapse navbar-collapse" id="topnav-menu-content">
+                        <ul class="navbar-nav">
+                            <li class="nav-item dropdown hover-dropdown <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/index.html') ? "active" : "";echo $nva;?>">
+                                <a class="nav-link <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/index.html') ? "active" : "";echo $nva;?>" href="<?php echo url('auto/index');?>">
+                                    <span class="menu-icon"><i class="ti ti-home"></i></span>
+                                    <span class="menu-text">牛牛助手</span>
+                                </a>
+                            </li>
+                            <li class="nav-item dropdown hover-dropdown <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/zyk.html') ? "active" : "";echo $nva;?>">
+                                <a class="nav-link <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/zyk.html') ? "active" : "";echo $nva;?>" href="<?php echo url('auto/zyk');?>">
+                                    <span class="menu-icon"><i class="ti ti-apps"></i></span>
+                                    <span class="menu-text">资源推荐</span>
+                                </a>
+                            </li>
+                            <li class="nav-item dropdown hover-dropdown <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/rep.html') ? "active" : "";echo $nva;?>">
+                                <a class="nav-link <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/rep.html') ? "active" : "";echo $nva;?>" href="<?php echo url('auto/rep');?>">
+                                    <span class="menu-icon"><i class="ti ti-file-type-sql"></i></span>
+                                    <span class="menu-text"> 手动替换</span>
+                                    <span class="badge bg-danger rounded-pill" style="margin-left: 8px;"><?php echo count($replist);?></span>
+                                </a>
+                            </li>
+                            <li class="nav-item dropdown hover-dropdown <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/rvm.html') ? "active" : "";echo $nva;?>">
+                                <a class="nav-link <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/rvm.html') ? "active" : "";echo $nva;?>" href="<?php echo url('auto/rvm');?>">
+                                    <span class="menu-icon"><i class="ti ti-forms"></i></span>
+                                    <span class="menu-text">求片留言</span>
+                                </a>
+                            </li>
+                            <li class="nav-item dropdown hover-dropdown <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/free.html') ? "active" : "";echo $nva;?>">
+                                <a class="nav-link <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/rep.html') ? "active" : "";echo $nva;?>" href="<?php echo url('auto/free');?>">
+                                    <span class="menu-icon"><i class="ti ti-app-window"></i></span>
+                                    <span class="menu-text">免费模板</span>
+                                </a>
+                            </li>
+                            <li class="nav-item dropdown hover-dropdown <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/poster.html') ? "active" : "";echo $nva;?>">
+                                <a class="nav-link <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/poster.html') ? "active" : "";echo $nva;?>" href="<?php echo url('auto/poster');?>">
+                                    <span class="menu-icon"><i class="ti ti-photo-scan"></i></span>
+                                    <span class="menu-text">影视海报</span>
+                                </a>
+                            </li>
+                            <li class="nav-item dropdown hover-dropdown <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/news.html') ? "active" : "";echo $nva;?>">
+                                <a class="nav-link <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/news.html') ? "active" : "";echo $nva;?>" href="<?php echo url('auto/news');?>">
+                                    <span class="menu-icon"><i class="ti ti-news"></i></span>
+                                    <span class="menu-text">资讯采集</span>
+                                </a>
+                            </li> 
+                            <li class="nav-item dropdown hover-dropdown <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/cron.html') ? "active" : "";echo $nva;?>">
+                                <a class="nav-link <?php $nva = ($_SERVER['PATH_INFO'] === '/admin/auto/crons.html') ? "active" : "";echo $nva;?>" href="<?php echo url('auto/crons');?>">
+                                    <span class="menu-icon"><i class="ti ti-clock-2"></i></span>
+                                    <span class="menu-text">定时任务</span>
+                                </a>
+                            </li>
+                            
+                            <?php if($nvalist) { foreach($nvalist as &$_nva) { ?>
+                            <li class="nav-item dropdown hover-dropdown">
+                                <a class="nav-link" target="_blank" href="<?php echo $_nva['url'];?>">
+                                    <span class="menu-icon"><i class="ti ti-world-pin"></i></span>
+                                    <span class="menu-text"><?php echo $_nva['name'];?></span>
+                                </a>
+                            </li>
+                            <?php }} else { ?>
+                                <?php } ?>  
+                              <!--<li class="nav-item dropdown hover-dropdown">
+                                <a class="nav-link dropdown-toggle drop-arrow-none" href="#" id="topnav-layouts" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <span class="menu-icon"><i class="ti ti-layout"></i></span>
+                                    <span class="menu-text">系统操作</span>
+                                    <div class="menu-arrow"></div>
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="topnav-layouts">
+                                    <a href="/" class="dropdown-item" target="_blank">网站首页</a>
+                                  <a href="<?php echo url('system/config');?>" class="dropdown-item active">网站设置</a>
+                                    <a href="<?php echo url('system/clear');?>" class="dropdown-item active">清理缓存</a>
+                                    <a href="<?php echo url('type/index');?>" class="dropdown-item" >分类管理</a>
+                                    <a href="<?php echo url('vodplayer/index');?>" class="dropdown-item" >播放器</a>
+                                    <a href="<?php echo url('collect/index');?>" class="dropdown-item" >采集接口</a>
+                                    <a href="<?php echo url('timming/index');?>" class="dropdown-item">定时任务</a> 
+                                </div>
+                            </li>-->
+
+                        </ul>
+                    </div>
+                </nav>
+            </nav>
+        </header>

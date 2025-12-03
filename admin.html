@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>后台管理 - 低端影视</title>
+    <script src="libs/tailwindcss.min.js"></script>
+    <style>
+        .loading { animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen text-white">
+    <!-- 登录页面 -->
+    <div id="loginPage" class="min-h-screen flex items-center justify-center p-4">
+        <div class="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-8 w-full max-w-md border border-slate-700">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-gradient-to-br from-sky-500 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <span class="text-3xl">🎬</span>
+                </div>
+                <h1 class="text-2xl font-bold">低端影视 后台管理</h1>
+                <p class="text-slate-400 mt-2">请输入管理员密码登录</p>
+            </div>
+            <form onsubmit="handleLogin(event)">
+                <input type="password" id="passwordInput" placeholder="管理员密码"
+                    class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-sky-500 mb-4">
+                <button type="submit" id="loginBtn"
+                    class="w-full py-3 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 text-white rounded-xl font-medium transition-all">
+                    登录
+                </button>
+            </form>
+            <p id="loginError" class="text-red-400 text-center mt-4 hidden"></p>
+        </div>
+    </div>
+
+    <!-- 管理面板 -->
+    <div id="adminPanel" class="hidden">
+        <header class="bg-slate-800/80 backdrop-blur-xl border-b border-slate-700 sticky top-0 z-10">
+            <div class="container mx-auto px-4 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-sky-500 to-cyan-500 rounded-xl flex items-center justify-center">
+                        <span class="text-xl">🎬</span>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold">后台管理</h1>
+                        <p class="text-xs text-slate-400">数据同步与管理</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <a href="/" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition-colors">返回首页</a>
+                    <button onclick="handleLogout()" class="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm transition-colors">退出登录</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="container mx-auto px-4 py-8">
+            <!-- 同步状态卡片 -->
+            <div class="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-6 border border-slate-700 mb-6">
+                <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+                    <span>📊</span> 同步状态
+                </h2>
+                <div id="statusContent" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-slate-700/50 rounded-xl p-4 text-center">
+                        <p class="text-slate-400 text-sm">状态</p>
+                        <p id="syncStatus" class="text-xl font-bold text-sky-400">-</p>
+                    </div>
+                    <div class="bg-slate-700/50 rounded-xl p-4 text-center">
+                        <p class="text-slate-400 text-sm">视频总数</p>
+                        <p id="totalVideos" class="text-xl font-bold text-green-400">-</p>
+                    </div>
+                    <div class="bg-slate-700/50 rounded-xl p-4 text-center">
+                        <p class="text-slate-400 text-sm">分类数量</p>
+                        <p id="totalCategories" class="text-xl font-bold text-purple-400">-</p>
+                    </div>
+                    <div class="bg-slate-700/50 rounded-xl p-4 text-center">
+                        <p class="text-slate-400 text-sm">上次同步</p>
+                        <p id="lastSync" class="text-xl font-bold text-orange-400">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 操作区域 -->
+            <div class="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-6 border border-slate-700">
+                <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+                    <span>⚡</span> 数据同步
+                </h2>
+                <p class="text-slate-400 mb-4">点击下方按钮从数据源拉取最新数据并更新缓存。同步过程可能需要 1-2 分钟。</p>
+                <button onclick="handleSync()" id="syncBtn"
+                    class="px-6 py-3 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 text-white rounded-xl font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span id="syncIcon">🔄</span>
+                    <span id="syncText">立即同步</span>
+                </button>
+                <p id="syncResult" class="mt-4 text-sm hidden"></p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // 检查登录状态
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/admin/verify');
+                const data = await res.json();
+                if (data.authenticated) {
+                    showAdminPanel();
+                    loadStatus();
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        // 显示管理面板
+        function showAdminPanel() {
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('adminPanel').classList.remove('hidden');
+        }
+
+        // 登录
+        async function handleLogin(e) {
+            e.preventDefault();
+            const password = document.getElementById('passwordInput').value;
+            const errorEl = document.getElementById('loginError');
+            const btn = document.getElementById('loginBtn');
+            
+            btn.disabled = true;
+            btn.textContent = '登录中...';
+            errorEl.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showAdminPanel();
+                    loadStatus();
+                } else {
+                    errorEl.textContent = data.error || '登录失败';
+                    errorEl.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorEl.textContent = '网络错误';
+                errorEl.classList.remove('hidden');
+            }
+            btn.disabled = false;
+            btn.textContent = '登录';
+        }
+
+        // 退出登录
+        async function handleLogout() {
+            await fetch('/api/admin/logout');
+            location.reload();
+        }
+
+        // 加载状态
+        async function loadStatus() {
+            try {
+                const res = await fetch('/api/admin/status');
+                const data = await res.json();
+                if (data.success && data.data) {
+                    const s = data.data;
+                    document.getElementById('syncStatus').textContent =
+                        s.status === 'success' ? '✅ 成功' :
+                        s.status === 'syncing' ? '🔄 同步中' :
+                        s.status === 'error' ? '❌ 失败' : '⏳ 未同步';
+                    document.getElementById('totalVideos').textContent = s.totalVideos || '-';
+                    document.getElementById('totalCategories').textContent = s.categories || '-';
+                    document.getElementById('lastSync').textContent = s.lastSync
+                        ? new Date(s.lastSync).toLocaleString('zh-CN') : '-';
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        // 执行同步
+        async function handleSync() {
+            const btn = document.getElementById('syncBtn');
+            const icon = document.getElementById('syncIcon');
+            const text = document.getElementById('syncText');
+            const result = document.getElementById('syncResult');
+
+            btn.disabled = true;
+            icon.classList.add('loading');
+            text.textContent = '同步中...';
+            result.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/admin/sync', { method: 'POST' });
+                const data = await res.json();
+
+                if (data.success) {
+                    result.textContent = `✅ 同步成功！共 ${data.totalVideos} 条视频，${data.categories} 个分类，耗时 ${(data.duration/1000).toFixed(1)} 秒`;
+                    result.className = 'mt-4 text-sm text-green-400';
+                } else {
+                    result.textContent = `❌ 同步失败: ${data.error}`;
+                    result.className = 'mt-4 text-sm text-red-400';
+                }
+                result.classList.remove('hidden');
+                loadStatus();
+            } catch (err) {
+                result.textContent = `❌ 网络错误: ${err.message}`;
+                result.className = 'mt-4 text-sm text-red-400';
+                result.classList.remove('hidden');
+            }
+
+            btn.disabled = false;
+            icon.classList.remove('loading');
+            text.textContent = '立即同步';
+        }
+
+        // 页面加载时检查登录
+        checkAuth();
+    </script>
+</body>
+</html>
+

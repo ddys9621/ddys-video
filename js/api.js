@@ -151,12 +151,56 @@ async function handleApiRequest(url) {
                 if (videoDetail.vod_play_url) {
                     // 分割不同播放源
                     const playSources = videoDetail.vod_play_url.split('$$$');
-                    
-                    // 提取第一个播放源的集数（通常为主要源）
-                    if (playSources.length > 0) {
-                        const mainSource = playSources[0];
+                    const playFroms = (videoDetail.vod_play_from || '').split('$$$');
+
+                    // 智能选择最佳播放源
+                    // 优先级：1. 包含m3u8的源  2. 名称包含m3u8的源  3. 第一个源
+                    let mainSource = null;
+                    let mainSourceIndex = 0;
+
+                    // 策略1: 查找链接中包含 .m3u8 的播放源
+                    for (let i = 0; i < playSources.length; i++) {
+                        if (playSources[i].includes('.m3u8')) {
+                            mainSource = playSources[i];
+                            mainSourceIndex = i;
+                            break;
+                        }
+                    }
+
+                    // 策略2: 如果没找到，查找 vod_play_from 中包含 m3u8 关键词的源
+                    if (!mainSource) {
+                        for (let i = 0; i < playFroms.length; i++) {
+                            const fromName = playFroms[i].toLowerCase();
+                            if (fromName.includes('m3u8') || fromName.includes('hls')) {
+                                mainSource = playSources[i];
+                                mainSourceIndex = i;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 策略3: 排除已知的非直链格式（HTML页面格式）
+                    if (!mainSource) {
+                        const nonDirectPatterns = ['subyun', 'yun', 'player', 'parse'];
+                        for (let i = 0; i < playSources.length; i++) {
+                            const fromName = (playFroms[i] || '').toLowerCase();
+                            const isNonDirect = nonDirectPatterns.some(p => fromName.includes(p) && !fromName.includes('m3u8'));
+                            if (!isNonDirect && playSources[i]) {
+                                mainSource = playSources[i];
+                                mainSourceIndex = i;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 兜底: 使用第一个源
+                    if (!mainSource) {
+                        mainSource = playSources[0];
+                    }
+
+                    if (mainSource) {
                         const episodeList = mainSource.split('#');
-                        
+
                         // 从每个集数中提取URL
                         episodes = episodeList.map(ep => {
                             const parts = ep.split('$');
@@ -576,16 +620,20 @@ async function handleMultipleCustomSearch(searchQuery, customApiUrls) {
 // 拦截API请求
 (function() {
     const originalFetch = window.fetch;
-    
+
+    // 不应被拦截的API路径（需要真正访问Vercel Serverless Function的路径）
+    const BYPASS_API_PATHS = [
+        '/api/auth-hash',  // 鉴权哈希API - 需要直接访问服务器
+        '/proxy/'          // 代理API - 需要直接访问服务器
+    ];
+
     window.fetch = async function(input, init) {
         const requestUrl = typeof input === 'string' ? new URL(input, window.location.origin) : input.url;
-        
-        if (requestUrl.pathname.startsWith('/api/')) {
-            if (window.isPasswordProtected && window.isPasswordVerified) {
-                if (window.isPasswordProtected() && !window.isPasswordVerified()) {
-                    return;
-                }
-            }
+
+        // 检查是否应该跳过拦截
+        const shouldBypass = BYPASS_API_PATHS.some(path => requestUrl.pathname.startsWith(path));
+
+        if (requestUrl.pathname.startsWith('/api/') && !shouldBypass) {
             try {
                 const data = await handleApiRequest(requestUrl);
                 return new Response(data, {
@@ -606,8 +654,8 @@ async function handleMultipleCustomSearch(searchQuery, customApiUrls) {
                 });
             }
         }
-        
-        // 非API请求使用原始fetch
+
+        // 非拦截API请求或需要绕过的API请求使用原始fetch
         return originalFetch.apply(this, arguments);
     };
 })();

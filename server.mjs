@@ -122,12 +122,13 @@ function isValidUrl(urlString) {
 function validateProxyAuth(req) {
   const authHash = req.query.auth;
   const timestamp = req.query.t;
-  
+
   // 获取服务器端密码哈希
   const serverPassword = config.password;
   if (!serverPassword) {
-    console.error('服务器未设置 PASSWORD 环境变量，代理访问被拒绝');
-    return false;
+    // 开发模式：未设置密码时允许代理访问
+    console.log('开发模式：未设置 PASSWORD 环境变量，允许代理访问');
+    return true;
   }
   
   // 使用 crypto 模块计算 SHA-256 哈希
@@ -151,6 +152,29 @@ function validateProxyAuth(req) {
   
   return true;
 }
+
+// API 端点：返回密码哈希
+app.get('/api/auth-hash', (req, res) => {
+  const password = config.password;
+
+  if (!password) {
+    return res.status(200).json({
+      success: false,
+      error: '服务器未配置密码'
+    });
+  }
+
+  // 计算 SHA-256 哈希
+  const hash = crypto.createHash('sha256').update(password).digest('hex');
+
+  // 设置 cookie
+  res.setHeader('Set-Cookie', `_auth_hash=${hash}; Path=/; Max-Age=86400; SameSite=Lax`);
+
+  res.status(200).json({
+    success: true,
+    hash: hash
+  });
+});
 
 app.get('/proxy/:encodedUrl', async (req, res) => {
   try {
@@ -199,14 +223,19 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
 
     const response = await makeRequest();
 
-    // 转发响应头（过滤敏感头）
+    // 转发响应头（过滤敏感头和可能导致问题的头）
     const headers = { ...response.headers };
-    const sensitiveHeaders = (
-      process.env.FILTERED_HEADERS || 
-      'content-security-policy,cookie,set-cookie,x-frame-options,access-control-allow-origin'
-    ).split(',');
-    
-    sensitiveHeaders.forEach(header => delete headers[header]);
+    const filteredHeaders = [
+      'content-security-policy',
+      'cookie',
+      'set-cookie',
+      'x-frame-options',
+      'access-control-allow-origin',
+      'content-length',  // 移除content-length避免流式传输时不匹配
+      'transfer-encoding'
+    ];
+
+    filteredHeaders.forEach(header => delete headers[header]);
     res.set(headers);
 
     // 管道传输响应流
@@ -223,7 +252,7 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname), {
-  maxAge: config.cacheMaxAge
+  maxAge: 0  // 开发期间禁用缓存
 }));
 
 app.use((err, req, res, next) => {

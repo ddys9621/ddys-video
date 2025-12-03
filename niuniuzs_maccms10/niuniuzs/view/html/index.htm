@@ -1,0 +1,60 @@
+<?php include  ROOT_PATH.'niuniuzs/view/html/head.htm';?>
+<div class="page-content">
+    <div class="page-container">
+        <div class="row mt-3">
+            <?php include  ROOT_PATH.'niuniuzs/view/html/ad.htm';?>
+        </div> 
+        <div class="col-xl-12">
+            <div class="card">
+                
+                <div class="card-body"> 
+                     <div class="card mb-2 shadow-sm">
+    <div class="card-header bg-primary text-white fw-bold">插件简介</div>
+    <div class="card-body">
+      <table class="table table-bordered table-hover align-middle">
+        <tbody>
+          <tr>
+            <th style="width: 150px;">名称</th><td>牛牛助手</td>
+            <th style="width: 150px;">当前版本</th><td>  
+                     <?php  
+                    if($version['macv10']==$hostversion){
+                    echo  '<a class="btn btn-success">'.$version['macv10'].'</a>'; 
+                    }else{
+                    $upuri=str_replace("/","",$GLOBALS['in_file']).'/admin/Auto/update?to='.$version['macv10'];
+                    echo '<a href="/'.$upuri.'" class="btn btn-danger">升级新版</a>'; 
+                    }
+                    ?>  </td>
+          </tr>
+          <tr>
+            <th>官网</th><td><a style="color:#1E90FF;" href="<?php echo $version['web_site'] ;?>"
+                    target="_blank"><?php echo $version['author'] ;?></a></td>
+            <th>客服TG</th><td><a style="color:#1E90FF;" href="<?php echo $version['qq'] ;?>" target="_blank">在线客服</a></td>
+          </tr>
+          <tr>
+            <th>TG群组</th><td><a style="color:#1E90FF;" href="<?php echo $version['tg'] ;?>" target="_blank">加入TG群组</a></td>
+            <th>TG频道</th><td><a style="color:#1E90FF;" href="<?php echo $version['tg1'] ;?>" target="_blank">订阅TG频道</a></td>
+            
+          </tr>
+          <tr>
+            <th>更新时间</th><td><?php echo $version['updatetime'] ;?></td>
+            <th>PHP要求</th><td>PHP ≥ 5.6</td>
+             
+          </tr>
+          <tr>
+            <th>更新日志</th><td colspan="3">
+             <?php echo $version['newlog'];?>  
+            </td>
+          </tr>
+        </tbody>
+      </table> 
+     
+    </div>
+  </div> 
+                     
+                </div> 
+            </div> 
+        </div>
+    </div>
+    <?php include  ROOT_PATH.'niuniuzs/view/html/footer.htm';?>
+</div>
+<?php include  ROOT_PATH.'niuniuzs/view/html/foot.htm';?>

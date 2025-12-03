@@ -1,6 +1,11 @@
 // 全局变量
-let selectedAPIs = JSON.parse(localStorage.getItem('selectedAPIs') || '["tyyszy","dyttzy", "bfzy", "ruyi"]'); // 默认选中资源
-let customAPIs = JSON.parse(localStorage.getItem('customAPIs') || '[]'); // 存储自定义API列表
+// 开发者固定配置的数据源列表（通过 window.ACTIVE_SOURCES 注入）
+// 用户在前端无法修改，只能由开发者在代码中调整
+const ACTIVE_SOURCES = (window.ACTIVE_SOURCES && Array.isArray(window.ACTIVE_SOURCES) && window.ACTIVE_SOURCES.length)
+    ? window.ACTIVE_SOURCES
+    : Object.keys(window.API_SITES || {});
+// 为兼容后续代码，仍然使用 selectedAPIs 变量名，但不再从 localStorage 读取
+let selectedAPIs = ACTIVE_SOURCES.slice();
 
 // 添加当前播放的集数索引
 let currentEpisodeIndex = 0;
@@ -11,200 +16,50 @@ let currentVideoTitle = '';
 // 全局变量用于倒序状态
 let episodesReversed = false;
 
+// 详情列表统一分页配置：每页 16 个卡片，用于首页推荐和分类筛选的“翻页补齐”
+const DETAIL_PAGE_SIZE = 16;
+// 为了性能限制向后最多翻多少个 API 页（通常真实页数不会太大）
+const DETAIL_MAX_BACKFILL_PAGES = 20;
+
 // 页面初始化
 document.addEventListener('DOMContentLoaded', function () {
-    // 初始化API复选框
-    initAPICheckboxes();
-
-    // 初始化自定义API列表
-    renderCustomAPIsList();
-
-    // 初始化显示选中的API数量
-    updateSelectedApiCount();
-
     // 渲染搜索历史
     renderSearchHistory();
-
-    // 设置默认API选择（如果是第一次加载）
-    if (!localStorage.getItem('hasInitializedDefaults')) {
-        // 默认选中资源
-        selectedAPIs = ["tyyszy", "bfzy", "dyttzy", "ruyi"];
-        localStorage.setItem('selectedAPIs', JSON.stringify(selectedAPIs));
-
-        // 默认选中过滤开关
-        localStorage.setItem('yellowFilterEnabled', 'true');
-        localStorage.setItem(PLAYER_CONFIG.adFilteringStorage, 'true');
-
-        // 默认启用豆瓣功能
-        localStorage.setItem('doubanEnabled', 'true');
-
-        // 标记已初始化默认值
-        localStorage.setItem('hasInitializedDefaults', 'true');
-    }
-
-    // 设置黄色内容过滤器开关初始状态
-    const yellowFilterToggle = document.getElementById('yellowFilterToggle');
-    if (yellowFilterToggle) {
-        yellowFilterToggle.checked = localStorage.getItem('yellowFilterEnabled') === 'true';
-    }
-
-    // 设置广告过滤开关初始状态
-    const adFilterToggle = document.getElementById('adFilterToggle');
-    if (adFilterToggle) {
-        adFilterToggle.checked = localStorage.getItem(PLAYER_CONFIG.adFilteringStorage) !== 'false'; // 默认为true
-    }
 
     // 设置事件监听器
     setupEventListeners();
 
-    // 初始检查成人API选中状态
-    setTimeout(checkAdultAPIsSelected, 100);
+    // 初始化返回顶部按钮
+    initBackToTopBtn();
 });
 
-// 初始化API复选框
-function initAPICheckboxes() {
-    const container = document.getElementById('apiCheckboxes');
-    container.innerHTML = '';
+// ========== 返回顶部按钮 ==========
+// 初始化返回顶部按钮
+function initBackToTopBtn() {
+    const btn = document.getElementById('backToTopBtn');
+    if (!btn) return;
 
-    // 添加普通API组标题
-    const normaldiv = document.createElement('div');
-    normaldiv.id = 'normaldiv';
-    normaldiv.className = 'grid grid-cols-2 gap-2';
-    const normalTitle = document.createElement('div');
-    normalTitle.className = 'api-group-title';
-    normalTitle.textContent = '普通资源';
-    normaldiv.appendChild(normalTitle);
-
-    // 创建普通API源的复选框
-    Object.keys(API_SITES).forEach(apiKey => {
-        const api = API_SITES[apiKey];
-        if (api.adult) return; // 跳过成人内容API，稍后添加
-
-        const checked = selectedAPIs.includes(apiKey);
-
-        const checkbox = document.createElement('div');
-        checkbox.className = 'flex items-center';
-        checkbox.innerHTML = `
-            <input type="checkbox" id="api_${apiKey}" 
-                   class="form-checkbox h-3 w-3 text-blue-600 bg-[#222] border border-[#333]" 
-                   ${checked ? 'checked' : ''} 
-                   data-api="${apiKey}">
-            <label for="api_${apiKey}" class="ml-1 text-xs text-gray-400 truncate">${api.name}</label>
-        `;
-        normaldiv.appendChild(checkbox);
-
-        // 添加事件监听器
-        checkbox.querySelector('input').addEventListener('change', function () {
-            updateSelectedAPIs();
-            checkAdultAPIsSelected();
-        });
+    // 监听滚动事件，控制按钮显示/隐藏
+    window.addEventListener('scroll', () => {
+        if (window.scrollY > 300) {
+            btn.classList.remove('opacity-0', 'invisible');
+            btn.classList.add('opacity-100', 'visible');
+        } else {
+            btn.classList.remove('opacity-100', 'visible');
+            btn.classList.add('opacity-0', 'invisible');
+        }
     });
-    container.appendChild(normaldiv);
-
-    // 添加成人API列表
-    addAdultAPI();
-
-    // 初始检查成人内容状态
-    checkAdultAPIsSelected();
 }
 
-// 添加成人API列表
-function addAdultAPI() {
-    // 仅在隐藏设置为false时添加成人API组
-    if (!HIDE_BUILTIN_ADULT_APIS && (localStorage.getItem('yellowFilterEnabled') === 'false')) {
-        const container = document.getElementById('apiCheckboxes');
-
-        // 添加成人API组标题
-        const adultdiv = document.createElement('div');
-        adultdiv.id = 'adultdiv';
-        adultdiv.className = 'grid grid-cols-2 gap-2';
-        const adultTitle = document.createElement('div');
-        adultTitle.className = 'api-group-title adult';
-        adultTitle.innerHTML = `黄色资源采集站 <span class="adult-warning">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-        </span>`;
-        adultdiv.appendChild(adultTitle);
-
-        // 创建成人API源的复选框
-        Object.keys(API_SITES).forEach(apiKey => {
-            const api = API_SITES[apiKey];
-            if (!api.adult) return; // 仅添加成人内容API
-
-            const checked = selectedAPIs.includes(apiKey);
-
-            const checkbox = document.createElement('div');
-            checkbox.className = 'flex items-center';
-            checkbox.innerHTML = `
-                <input type="checkbox" id="api_${apiKey}" 
-                       class="form-checkbox h-3 w-3 text-blue-600 bg-[#222] border border-[#333] api-adult" 
-                       ${checked ? 'checked' : ''} 
-                       data-api="${apiKey}">
-                <label for="api_${apiKey}" class="ml-1 text-xs text-pink-400 truncate">${api.name}</label>
-            `;
-            adultdiv.appendChild(checkbox);
-
-            // 添加事件监听器
-            checkbox.querySelector('input').addEventListener('change', function () {
-                updateSelectedAPIs();
-                checkAdultAPIsSelected();
-            });
-        });
-        container.appendChild(adultdiv);
-    }
+// 滚动到顶部
+function scrollToTop() {
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
 }
 
-// 检查是否有成人API被选中
-function checkAdultAPIsSelected() {
-    // 查找所有内置成人API复选框
-    const adultBuiltinCheckboxes = document.querySelectorAll('#apiCheckboxes .api-adult:checked');
 
-    // 查找所有自定义成人API复选框
-    const customApiCheckboxes = document.querySelectorAll('#customApisList .api-adult:checked');
-
-    const hasAdultSelected = adultBuiltinCheckboxes.length > 0 || customApiCheckboxes.length > 0;
-
-    const yellowFilterToggle = document.getElementById('yellowFilterToggle');
-    const yellowFilterContainer = yellowFilterToggle.closest('div').parentNode;
-    const filterDescription = yellowFilterContainer.querySelector('p.filter-description');
-
-    // 如果选择了成人API，禁用黄色内容过滤器
-    if (hasAdultSelected) {
-        yellowFilterToggle.checked = false;
-        yellowFilterToggle.disabled = true;
-        localStorage.setItem('yellowFilterEnabled', 'false');
-
-        // 添加禁用样式
-        yellowFilterContainer.classList.add('filter-disabled');
-
-        // 修改描述文字
-        if (filterDescription) {
-            filterDescription.innerHTML = '<strong class="text-pink-300">选中黄色资源站时无法启用此过滤</strong>';
-        }
-
-        // 移除提示信息（如果存在）
-        const existingTooltip = yellowFilterContainer.querySelector('.filter-tooltip');
-        if (existingTooltip) {
-            existingTooltip.remove();
-        }
-    } else {
-        // 启用黄色内容过滤器
-        yellowFilterToggle.disabled = false;
-        yellowFilterContainer.classList.remove('filter-disabled');
-
-        // 恢复原来的描述文字
-        if (filterDescription) {
-            filterDescription.innerHTML = '过滤"伦理片"等黄色内容';
-        }
-
-        // 移除提示信息
-        const existingTooltip = yellowFilterContainer.querySelector('.filter-tooltip');
-        if (existingTooltip) {
-            existingTooltip.remove();
-        }
-    }
-}
 
 // 渲染自定义API列表
 function renderCustomAPIsList() {
@@ -474,26 +329,7 @@ function removeCustomApi(index) {
     // 更新选中的API数量
     updateSelectedApiCount();
 
-    // 重新检查成人API选中状态
-    checkAdultAPIsSelected();
-
     showToast('已移除自定义API: ' + apiName, 'info');
-}
-
-function toggleSettings(e) {
-    const settingsPanel = document.getElementById('settingsPanel');
-    if (!settingsPanel) return;
-
-    if (settingsPanel.classList.contains('show')) {
-        settingsPanel.classList.remove('show');
-    } else {
-        settingsPanel.classList.add('show');
-    }
-
-    if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
 }
 
 // 设置事件监听器
@@ -505,18 +341,8 @@ function setupEventListeners() {
         }
     });
 
-    // 点击外部关闭设置面板和历史记录面板
+    // 点击外部关闭历史记录面板
     document.addEventListener('click', function (e) {
-        // 关闭设置面板
-        const settingsPanel = document.querySelector('#settingsPanel.show');
-        const settingsButton = document.querySelector('#settingsPanel .close-btn');
-
-        if (settingsPanel && settingsButton &&
-            !settingsPanel.contains(e.target) &&
-            !settingsButton.contains(e.target)) {
-            settingsPanel.classList.remove('show');
-        }
-
         // 关闭历史记录面板
         const historyPanel = document.querySelector('#historyPanel.show');
         const historyButton = document.querySelector('#historyPanel .close-btn');
@@ -527,35 +353,6 @@ function setupEventListeners() {
             historyPanel.classList.remove('show');
         }
     });
-
-    // 黄色内容过滤开关事件绑定
-    const yellowFilterToggle = document.getElementById('yellowFilterToggle');
-    if (yellowFilterToggle) {
-        yellowFilterToggle.addEventListener('change', function (e) {
-            localStorage.setItem('yellowFilterEnabled', e.target.checked);
-
-            // 控制黄色内容接口的显示状态
-            const adultdiv = document.getElementById('adultdiv');
-            if (adultdiv) {
-                if (e.target.checked === true) {
-                    adultdiv.style.display = 'none';
-                } else if (e.target.checked === false) {
-                    adultdiv.style.display = ''
-                }
-            } else {
-                // 添加成人API列表
-                addAdultAPI();
-            }
-        });
-    }
-
-    // 广告过滤开关事件绑定
-    const adFilterToggle = document.getElementById('adFilterToggle');
-    if (adFilterToggle) {
-        adFilterToggle.addEventListener('change', function (e) {
-            localStorage.setItem(PLAYER_CONFIG.adFilteringStorage, e.target.checked);
-        });
-    }
 }
 
 // 重置搜索区域
@@ -573,11 +370,6 @@ function resetSearchArea() {
     const footer = document.querySelector('.footer');
     if (footer) {
         footer.style.position = '';
-    }
-
-    // 如果有豆瓣功能，检查是否需要显示豆瓣推荐区域
-    if (typeof updateDoubanVisibility === 'function') {
-        updateDoubanVisibility();
     }
 
     // 重置URL为主页
@@ -603,34 +395,12 @@ function getCustomApiInfo(customApiIndex) {
     return customAPIs[index];
 }
 
-// 搜索功能 - 修改为支持多选API和多页结果
+// 搜索功能 - 从 KV 缓存搜索
 async function search() {
-    // 强化的密码保护校验 - 防止绕过
-    try {
-        if (window.ensurePasswordProtection) {
-            window.ensurePasswordProtection();
-        } else {
-            // 兼容性检查
-            if (window.isPasswordProtected && window.isPasswordVerified) {
-                if (window.isPasswordProtected() && !window.isPasswordVerified()) {
-                    showPasswordModal && showPasswordModal();
-                    return;
-                }
-            }
-        }
-    } catch (error) {
-        console.warn('Password protection check failed:', error.message);
-        return;
-    }
     const query = document.getElementById('searchInput').value.trim();
 
     if (!query) {
         showToast('请输入搜索内容', 'info');
-        return;
-    }
-
-    if (selectedAPIs.length === 0) {
-        showToast('请至少选择一个API源', 'warning');
         return;
     }
 
@@ -640,31 +410,15 @@ async function search() {
         // 保存搜索历史
         saveSearchHistory(query);
 
-        // 从所有选中的API源搜索
-        let allResults = [];
-        const searchPromises = selectedAPIs.map(apiId => 
-            searchByAPIAndKeyWord(apiId, query)
-        );
+        // 从 KV 缓存 API 搜索
+        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
 
-        // 等待所有搜索请求完成
-        const resultsArray = await Promise.all(searchPromises);
+        if (!response.ok) {
+            throw new Error('搜索服务暂不可用');
+        }
 
-        // 合并所有结果
-        resultsArray.forEach(results => {
-            if (Array.isArray(results) && results.length > 0) {
-                allResults = allResults.concat(results);
-            }
-        });
-
-        // 对搜索结果进行排序：按名称优先，名称相同时按接口源排序
-        allResults.sort((a, b) => {
-            // 首先按照视频名称排序
-            const nameCompare = (a.vod_name || '').localeCompare(b.vod_name || '');
-            if (nameCompare !== 0) return nameCompare;
-            
-            // 如果名称相同，则按照来源排序
-            return (a.source_name || '').localeCompare(b.source_name || '');
-        });
+        const data = await response.json();
+        let allResults = data.success && data.list ? data.list : [];
 
         // 更新搜索结果计数
         const searchResultsCount = document.getElementById('searchResultsCount');
@@ -672,16 +426,11 @@ async function search() {
             searchResultsCount.textContent = allResults.length;
         }
 
-        // 显示结果区域，调整搜索区域
+        // 显示结果区域，调整搜索区域，隐藏最近更新区域
         document.getElementById('searchArea').classList.remove('flex-1');
         document.getElementById('searchArea').classList.add('mb-8');
         document.getElementById('resultsArea').classList.remove('hidden');
-
-        // 隐藏豆瓣推荐区域（如果存在）
-        const doubanArea = document.getElementById('doubanArea');
-        if (doubanArea) {
-            doubanArea.classList.add('hidden');
-        }
+        document.getElementById('recentUpdatesArea').classList.add('hidden');
 
         const resultsDiv = document.getElementById('results');
 
@@ -690,11 +439,11 @@ async function search() {
             resultsDiv.innerHTML = `
                 <div class="col-span-full text-center py-16">
                     <svg class="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <h3 class="mt-2 text-lg font-medium text-gray-400">没有找到匹配的结果</h3>
-                    <p class="mt-1 text-sm text-gray-500">请尝试其他关键词或更换数据源</p>
+                    <p class="mt-1 text-sm text-gray-500">请尝试其他关键词</p>
                 </div>
             `;
             hideLoading();
@@ -703,30 +452,19 @@ async function search() {
 
         // 有搜索结果时，才更新URL
         try {
-            // 使用URI编码确保特殊字符能够正确显示
             const encodedQuery = encodeURIComponent(query);
-            // 使用HTML5 History API更新URL，不刷新页面
             window.history.pushState(
                 { search: query },
                 `搜索: ${query} - LibreTV`,
                 `/s=${encodedQuery}`
             );
-            // 更新页面标题
             document.title = `搜索: ${query} - LibreTV`;
         } catch (e) {
             console.error('更新浏览器历史失败:', e);
-            // 如果更新URL失败，继续执行搜索
         }
 
-        // 处理搜索结果过滤：如果启用了黄色内容过滤，则过滤掉分类含有敏感内容的项目
-        const yellowFilterEnabled = localStorage.getItem('yellowFilterEnabled') === 'true';
-        if (yellowFilterEnabled) {
-            const banned = ['伦理片', '福利', '里番动漫', '门事件', '萝莉少女', '制服诱惑', '国产传媒', 'cosplay', '黑丝诱惑', '无码', '日本无码', '有码', '日本有码', 'SWAG', '网红主播', '色情片', '同性片', '福利视频', '福利片'];
-            allResults = allResults.filter(item => {
-                const typeName = item.type_name || '';
-                return !banned.some(keyword => typeName.includes(keyword));
-            });
-        }
+        // 使用第一个可用的 API 源 ID（用于点击详情时传递）
+        const apiId = selectedAPIs.length > 0 ? selectedAPIs[0] : Object.keys(API_SITES)[0];
 
         // 添加XSS保护，使用textContent和属性转义
         const safeResults = allResults.map(item => {
@@ -735,63 +473,29 @@ async function search() {
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;');
-            const sourceInfo = item.source_name ?
-                `<span class="bg-[#222] text-xs px-1.5 py-0.5 rounded-full">${item.source_name}</span>` : '';
-            const sourceCode = item.source_code || '';
 
-            // 添加API URL属性，用于详情获取
-            const apiUrlAttr = item.api_url ?
-                `data-api-url="${item.api_url.replace(/"/g, '&quot;')}"` : '';
-
-            // 修改为水平卡片布局，图片在左侧，文本在右侧，并优化样式
+            // 竖版卡片布局，与分类筛选统一样式
             const hasCover = item.vod_pic && item.vod_pic.startsWith('http');
 
             return `
-                <div class="card-hover bg-[#111] rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-[1.02] h-full shadow-sm hover:shadow-md" 
-                     onclick="showDetails('${safeId}','${safeName}','${sourceCode}')" ${apiUrlAttr}>
-                    <div class="flex h-full">
+                <div class="video-card" onclick="showDetails('${safeId}','${safeName}','${apiId}')"
+                    <div class="poster-container">
                         ${hasCover ? `
-                        <div class="relative flex-shrink-0 search-card-img-container">
-                            <img src="${item.vod_pic}" alt="${safeName}" 
-                                 class="h-full w-full object-cover transition-transform hover:scale-110" 
-                                 onerror="this.onerror=null; this.src='https://via.placeholder.com/300x450?text=无封面'; this.classList.add('object-contain');" 
+                            <img src="${item.vod_pic}" alt="${safeName}"
+                                 onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'poster-placeholder\\'>🎬</div>';"
                                  loading="lazy">
-                            <div class="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent"></div>
-                        </div>` : ''}
-                        
-                        <div class="p-2 flex flex-col flex-grow">
-                            <div class="flex-grow">
-                                <h3 class="font-semibold mb-2 break-words line-clamp-2 ${hasCover ? '' : 'text-center'}" title="${safeName}">${safeName}</h3>
-                                
-                                <div class="flex flex-wrap ${hasCover ? '' : 'justify-center'} gap-1 mb-2">
-                                    ${(item.type_name || '').toString().replace(/</g, '&lt;') ?
-                    `<span class="text-xs py-0.5 px-1.5 rounded bg-opacity-20 bg-blue-500 text-blue-300">
-                                          ${(item.type_name || '').toString().replace(/</g, '&lt;')}
-                                      </span>` : ''}
-                                    ${(item.vod_year || '') ?
-                    `<span class="text-xs py-0.5 px-1.5 rounded bg-opacity-20 bg-purple-500 text-purple-300">
-                                          ${item.vod_year}
-                                      </span>` : ''}
-                                </div>
-                                <p class="text-gray-400 line-clamp-2 overflow-hidden ${hasCover ? '' : 'text-center'} mb-2">
-                                    ${(item.vod_remarks || '暂无介绍').toString().replace(/</g, '&lt;')}
-                                </p>
-                            </div>
-                            
-                            <div class="flex justify-between items-center mt-1 pt-1 border-t border-gray-800">
-                                ${sourceInfo ? `<div>${sourceInfo}</div>` : '<div></div>'}
-                                <!-- 接口名称过长会被挤变形
-                                <div>
-                                    <span class="text-gray-500 flex items-center hover:text-blue-400 transition-colors">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                        </svg>
-                                        播放
-                                    </span>
-                                </div>
-                                -->
+                        ` : '<div class="poster-placeholder">🎬</div>'}
+                        <div class="play-overlay">
+                            <div class="play-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                             </div>
                         </div>
+                        <div class="badge-container">
+                            <span class="badge">${(item.vod_remarks || '').toString().replace(/</g, '&lt;') || 'HD'}</span>
+                        </div>
+                    </div>
+                    <div class="card-info">
+                        <h3 class="card-title" title="${safeName}">${safeName}</h3>
                     </div>
                 </div>
             `;
@@ -919,6 +623,16 @@ async function showDetails(id, vod_name, sourceCode) {
                 // Prepare description text, strip HTML and trim whitespace
                 const descriptionText = data.videoInfo.desc ? data.videoInfo.desc.replace(/<[^>]+>/g, '').trim() : '';
 
+                // 保存视频信息到 localStorage，供播放页使用
+                try {
+                    localStorage.setItem('currentVodBlurb', descriptionText || '');
+                    localStorage.setItem('currentVodYear', data.videoInfo.year || '');
+                    localStorage.setItem('currentVodArea', data.videoInfo.area || '');
+                    localStorage.setItem('currentVodDirector', data.videoInfo.director || '');
+                    localStorage.setItem('currentVodActor', data.videoInfo.actor || '');
+                    localStorage.setItem('currentVodType', data.videoInfo.type || '');
+                } catch(e) {}
+
                 // Check if there's any actual grid content
                 const hasGridContent = data.videoInfo.type || data.videoInfo.year || data.videoInfo.area || data.videoInfo.director || data.videoInfo.actor || data.videoInfo.remarks;
 
@@ -949,18 +663,17 @@ async function showDetails(id, vod_name, sourceCode) {
 
             modalContent.innerHTML = `
                 ${detailInfoHtml}
-                <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
-                    <div class="flex items-center gap-2">
-                        <button onclick="toggleEpisodeOrder('${sourceCode}', '${id}')" 
-                                class="px-3 py-1.5 bg-[#333] hover:bg-[#444] border border-[#444] rounded text-sm transition-colors flex items-center gap-1">
+                <div class="episodes-header">
+                    <div class="episode-stats">
+                        <button onclick="toggleEpisodeOrder('${sourceCode}', '${id}')" class="episode-toggle-btn flex items-center gap-1">
                             <svg class="w-4 h-4 transform ${episodesReversed ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
                             </svg>
                             <span>${episodesReversed ? '正序排列' : '倒序排列'}</span>
                         </button>
-                        <span class="text-gray-400 text-sm">共 ${data.episodes.length} 集</span>
+                        <span class="episode-count">共 ${data.episodes.length} 集</span>
                     </div>
-                    <button onclick="copyLinks()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors">
+                    <button onclick="copyLinks()" class="copy-btn">
                         复制链接
                     </button>
                 </div>
@@ -999,12 +712,12 @@ function playVideo(url, vod_name, sourceCode, episodeIndex = 0, vodId = '') {
     // 获取当前路径作为返回页面
     let currentPath = window.location.href;
 
-    // 构建播放页面URL，使用watch.html作为中间跳转页
-    let watchUrl = `watch.html?id=${vodId || ''}&source=${sourceCode || ''}&url=${encodeURIComponent(url)}&index=${episodeIndex}&title=${encodeURIComponent(vod_name || '')}`;
+    // 构建播放页面URL，直接跳转到player.html
+    let playerUrl = `player.html?id=${vodId || ''}&source=${sourceCode || ''}&url=${encodeURIComponent(url)}&index=${episodeIndex}&title=${encodeURIComponent(vod_name || '')}`;
 
     // 添加返回URL参数
     if (currentPath.includes('index.html') || currentPath.endsWith('/')) {
-        watchUrl += `&back=${encodeURIComponent(currentPath)}`;
+        playerUrl += `&back=${encodeURIComponent(currentPath)}`;
     }
 
     // 保存当前状态到localStorage
@@ -1015,13 +728,44 @@ function playVideo(url, vod_name, sourceCode, episodeIndex = 0, vodId = '') {
         localStorage.setItem('currentSourceCode', sourceCode || '');
         localStorage.setItem('lastPlayTime', Date.now());
         localStorage.setItem('lastSearchPage', currentPath);
-        localStorage.setItem('lastPageUrl', currentPath);  // 确保保存返回页面URL
+        localStorage.setItem('lastPageUrl', currentPath);
     } catch (e) {
         console.error('保存播放状态失败:', e);
     }
 
-    // 在当前标签页中打开播放页面
-    window.location.href = watchUrl;
+    // 显示跳转动画遮罩
+    showPageTransition(vod_name);
+
+    // 延迟跳转，让动画显示
+    setTimeout(() => {
+        window.location.href = playerUrl;
+    }, 500);
+}
+
+// 显示页面跳转动画
+function showPageTransition(title) {
+    // 创建遮罩层
+    const overlay = document.createElement('div');
+    overlay.id = 'pageTransitionOverlay';
+    overlay.innerHTML = `
+        <div class="transition-content">
+            <!-- 动画加载圈 -->
+            <div class="transition-spinner">
+                <div class="transition-ring-bg"></div>
+                <div class="transition-ring-spin"></div>
+                <div class="transition-ring-inner"></div>
+            </div>
+            <!-- 加载文字 -->
+            <p class="transition-title">${title || '视频加载中...'}</p>
+            <p class="transition-sub">精彩内容即将呈现</p>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // 触发动画
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
 }
 
 // 弹出播放器页面
@@ -1031,9 +775,8 @@ function showVideoPlayer(url) {
     if (detailModal) {
         detailModal.classList.add('hidden');
     }
-    // 临时隐藏搜索结果和豆瓣区域，防止高度超出播放器而出现滚动条
+    // 临时隐藏搜索结果，防止高度超出播放器而出现滚动条
     document.getElementById('resultsArea').classList.add('hidden');
-    document.getElementById('doubanArea').classList.add('hidden');
     // 在框架中打开播放页面
     videoPlayerFrame = document.createElement('iframe');
     videoPlayerFrame.id = 'VideoPlayerFrame';
@@ -1055,10 +798,6 @@ function closeVideoPlayer(home = false) {
         const detailModal = document.getElementById('modal');
         if (detailModal) {
             detailModal.classList.add('hidden');
-        }
-        // 如果启用豆瓣区域则显示豆瓣区域
-        if (localStorage.getItem('doubanEnabled') === 'true') {
-            document.getElementById('doubanArea').classList.remove('hidden');
         }
     }
     if (home) {
@@ -1098,8 +837,8 @@ function renderEpisodes(vodName, sourceCode, vodId) {
         // 根据倒序状态计算真实的剧集索引
         const realIndex = episodesReversed ? currentEpisodes.length - 1 - index : index;
         return `
-            <button id="episode-${realIndex}" onclick="playVideo('${episode}','${vodName.replace(/"/g, '&quot;')}', '${sourceCode}', ${realIndex}, '${vodId}')" 
-                    class="px-4 py-2 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg transition-colors text-center episode-btn">
+            <button id="episode-${realIndex}" onclick="playVideo('${episode}','${vodName.replace(/"/g, '&quot;')}', '${sourceCode}', ${realIndex}, '${vodId}')"
+                    class="episode-btn">
                 ${realIndex + 1}
             </button>
         `;
@@ -1223,10 +962,12 @@ async function importConfigFromUrl() {
             const dataHash = await sha256(JSON.stringify(config.data));
             if (dataHash !== config.hash) throw '配置文件哈希值不匹配';
 
-            // 导入配置
-            for (let item in config.data) {
-                localStorage.setItem(item, config.data[item]);
-            }
+	            // 导入配置（不允许通过配置文件修改数据源相关设置）
+	            const blockedKeys = new Set(['selectedAPIs', 'customAPIs']);
+	            for (let item in config.data) {
+	                if (blockedKeys.has(item)) continue;
+	                localStorage.setItem(item, config.data[item]);
+	            }
 
             showToast('配置文件导入成功，3 秒后自动刷新本页面。', 'success');
             setTimeout(() => {
@@ -1267,18 +1008,20 @@ async function importConfig() {
                 reader.readAsText(file);
             });
 
-            // 解析并验证配置
-            const config = JSON.parse(content);
-            if (config.name !== 'LibreTV-Settings') throw '配置文件格式不正确';
+	        // 解析并验证配置
+	        const config = JSON.parse(content);
+	        if (config.name !== 'LibreTV-Settings') throw '配置文件格式不正确';
 
-            // 验证哈希
-            const dataHash = await sha256(JSON.stringify(config.data));
-            if (dataHash !== config.hash) throw '配置文件哈希值不匹配';
+	        // 验证哈希
+	        const dataHash = await sha256(JSON.stringify(config.data));
+	        if (dataHash !== config.hash) throw '配置文件哈希值不匹配';
 
-            // 导入配置
-            for (let item in config.data) {
-                localStorage.setItem(item, config.data[item]);
-            }
+	        // 导入配置（不允许通过配置文件修改数据源相关设置）
+	        const blockedKeys = new Set(['selectedAPIs', 'customAPIs']);
+	        for (let item in config.data) {
+	            if (blockedKeys.has(item)) continue;
+	            localStorage.setItem(item, config.data[item]);
+	        }
 
             showToast('配置文件导入成功，3 秒后自动刷新本页面。', 'success');
             setTimeout(() => {
@@ -1298,11 +1041,6 @@ async function exportConfig() {
     const items = {};
 
     const settingsToExport = [
-        'selectedAPIs',
-        'customAPIs',
-        'yellowFilterEnabled',
-        'adFilteringEnabled',
-        'doubanEnabled',
         'hasInitializedDefaults'
     ];
 
@@ -1351,6 +1089,601 @@ function saveStringAsFile(content, fileName) {
     // 清理临时对象
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
+}
+
+// 当前分类状态（用于分页/滚动加载）
+let currentCategoryState = {
+	typeId: null,
+	typeName: null,
+	page: 1,
+	totalPages: 1
+};
+
+// 首页/分类 最近更新区域：加载中的状态标记
+let isRecentScrollLoading = false;
+
+// 跳转到指定页码
+async function goToPage(page) {
+    if (page < 1 || page > currentCategoryState.totalPages) return;
+
+    if (currentCategoryState.typeId) {
+        // 分类模式
+        await searchByCategory(currentCategoryState.typeId, currentCategoryState.typeName, page);
+    } else {
+        // 首页模式
+        await loadRecentUpdates(page);
+    }
+}
+
+// 跳转到输入框指定的页码
+function goToInputPage() {
+    const pageInput = document.getElementById('pageInput');
+    if (!pageInput) return;
+
+    let page = parseInt(pageInput.value, 10);
+    if (isNaN(page) || page < 1) page = 1;
+    if (page > currentCategoryState.totalPages) page = currentCategoryState.totalPages;
+
+    goToPage(page);
+}
+
+// 更新分页控件状态
+function updatePaginationUI() {
+    const prevBtn = document.getElementById('prevPageBtn');
+    const nextBtn = document.getElementById('nextPageBtn');
+    const pageInput = document.getElementById('pageInput');
+    const totalPagesSpan = document.getElementById('totalPages');
+
+    if (prevBtn) {
+        prevBtn.disabled = currentCategoryState.page <= 1;
+    }
+    if (nextBtn) {
+        nextBtn.disabled = currentCategoryState.page >= currentCategoryState.totalPages;
+    }
+    if (pageInput) {
+        pageInput.value = currentCategoryState.page;
+        pageInput.max = currentCategoryState.totalPages;
+    }
+    if (totalPagesSpan) {
+        totalPagesSpan.textContent = currentCategoryState.totalPages;
+    }
+}
+
+// 加载首页推荐视频（优先从 KV 缓存读取）
+let recentUpdatesApiPage = 0;
+let recentUpdatesHasMore = true;
+
+async function loadRecentUpdates(page = 1, append = false) {
+    // 更新分类状态（首页没有 typeId）
+    currentCategoryState.typeId = null;
+    currentCategoryState.typeName = null;
+    currentCategoryState.page = page;
+
+    const container = document.getElementById('recentUpdates');
+    if (!container) return;
+
+    const loadingMoreEl = document.getElementById('recentLoadingMore');
+    const noMoreEl = document.getElementById('recentNoMore');
+
+    // 如果是第一页，重置状态
+    if (page === 1) {
+        recentUpdatesApiPage = 0;
+        recentUpdatesHasMore = false; // KV 模式下首页数据是固定的，无需加载更多
+    }
+
+    // 显示加载状态
+    if (!append) {
+        if (noMoreEl) noMoreEl.classList.add('hidden');
+        container.innerHTML = `
+            <div class="col-span-full flex justify-center items-center py-16">
+                <div class="bg-white rounded-2xl p-8 shadow-lg flex flex-col items-center gap-4">
+                    <div class="relative">
+                        <div class="w-14 h-14 border-4 border-sky-100 rounded-full"></div>
+                        <div class="absolute inset-0 w-14 h-14 border-4 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
+                        <div class="absolute inset-2 w-10 h-10 border-4 border-cyan-300 border-b-transparent rounded-full animate-spin-reverse"></div>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-sky-600 font-medium">加载推荐中...</p>
+                        <p class="text-gray-400 text-sm mt-1">精彩内容即将呈现</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    try {
+        // 从 KV 缓存 API 获取首页数据
+        const response = await fetch('/api/home-data');
+
+        if (!response.ok) {
+            throw new Error('数据未同步，请管理员先执行同步操作');
+        }
+
+        const data = await response.json();
+
+        if (!data.success || !data.list || data.list.length === 0) {
+            container.innerHTML = `
+                <div class="col-span-full text-center py-8">
+                    <p class="text-gray-400 mb-2">暂无推荐内容</p>
+                    <p class="text-gray-500 text-sm">请管理员在后台执行数据同步</p>
+                </div>
+            `;
+            return;
+        }
+
+        const safeItems = data.list;
+
+        // 首页数据是固定的，不需要分页
+        currentCategoryState.totalPages = 1;
+        currentCategoryState.page = 1;
+        recentUpdatesHasMore = false;
+        updatePaginationUI();
+
+        // 使用第一个可用的 API 源 ID（用于点击详情时传递）
+        const apiId = selectedAPIs.length > 0 ? selectedAPIs[0] : Object.keys(API_SITES)[0];
+
+        // 渲染视频卡片
+        const cardsHtml = safeItems.map(item => {
+            const safeName = (item.vod_name || '未知').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const safeId = (item.vod_id || '').toString().replace(/"/g, '&quot;');
+            const hasCover = item.vod_pic && item.vod_pic.startsWith('http');
+
+            return `
+                <div class="video-card" onclick="showDetails('${safeId}','${safeName}','${apiId}')">
+                    <div class="poster-container">
+                        ${hasCover ? `
+                            <img src="${item.vod_pic}" alt="${safeName}"
+                                 onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'poster-placeholder\\'>🎬</div>';"
+                                 loading="lazy">
+                        ` : '<div class="poster-placeholder">🎬</div>'}
+                        <div class="play-overlay">
+                            <div class="play-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                            </div>
+                        </div>
+                        <div class="badge-container">
+                            <span class="badge">${(item.vod_remarks || '').toString().replace(/</g, '&lt;') || 'HD'}</span>
+                        </div>
+                    </div>
+                    <div class="card-info">
+                        <h3 class="card-title" title="${safeName}">${safeName}</h3>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        if (append && page > 1) {
+            container.insertAdjacentHTML('beforeend', cardsHtml);
+        } else {
+            container.innerHTML = cardsHtml;
+        }
+
+        // 更新"加载更多"按钮状态
+        updateLoadMoreUI();
+
+    } catch (error) {
+        console.error('加载推荐视频失败:', error);
+        const errorMsg = error.name === 'AbortError' ? '加载超时' : (error.message || '加载失败');
+        container.innerHTML = `
+                <div class="col-span-full text-center py-8">
+                    <p class="text-gray-400 mb-2">${errorMsg}</p>
+                    <button onclick="loadRecentUpdates()" class="text-sky-500 hover:text-sky-600 text-sm">点击重试</button>
+                </div>
+            `;
+    } finally {
+        if (loadingMoreEl) loadingMoreEl.classList.add('hidden');
+    }
+}
+
+// 点击"加载更多"按钮时调用
+function loadMoreRecent() {
+    if (isRecentScrollLoading) return;
+    if (!currentCategoryState || !currentCategoryState.page || !currentCategoryState.totalPages) return;
+    if (currentCategoryState.page >= currentCategoryState.totalPages) return;
+
+    const nextPage = currentCategoryState.page + 1;
+    isRecentScrollLoading = true;
+
+    const p = currentCategoryState.typeId
+        ? searchByCategory(currentCategoryState.typeId, currentCategoryState.typeName, nextPage, true)
+        : loadRecentUpdates(nextPage, true);
+
+    Promise.resolve(p).finally(() => {
+        isRecentScrollLoading = false;
+    });
+}
+
+// 更新"加载更多"按钮和页码信息的显示状态
+// 记录已加载的视频数量
+let loadedVideoCount = 0;
+
+function updateLoadMoreUI() {
+    const loadMoreBtn = document.getElementById('recentLoadMoreBtn');
+    const noMoreEl = document.getElementById('recentNoMore');
+    const pageInfoEl = document.getElementById('recentPageInfo');
+
+    // 计算已加载的卡片数量
+    const container = document.getElementById('recentUpdates');
+    if (container) {
+        loadedVideoCount = container.querySelectorAll('.video-card').length;
+    }
+
+    // 更新已加载数量信息
+    if (pageInfoEl) {
+        if (loadedVideoCount > 0) {
+            pageInfoEl.textContent = `已加载 ${loadedVideoCount} 条`;
+        } else {
+            pageInfoEl.textContent = '';
+        }
+    }
+
+    // 判断是否还有更多内容
+    const hasMore = currentCategoryState.typeId ? categoryHasMore : recentUpdatesHasMore;
+    if (!hasMore) {
+        // 已到最后
+        if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
+        if (noMoreEl && loadedVideoCount > 0) noMoreEl.classList.remove('hidden');
+    } else {
+        // 还有更多内容
+        if (loadMoreBtn) loadMoreBtn.classList.remove('hidden');
+        if (noMoreEl) noMoreEl.classList.add('hidden');
+    }
+}
+
+// ========== 分类侧边栏 ==========
+// 分类数据缓存
+let categoryCache = null;
+
+// 切换分类侧边栏
+function toggleCategoryPanel() {
+    const panel = document.getElementById('categoryPanel');
+    const overlay = document.getElementById('categoryOverlay');
+    if (!panel || !overlay) return;
+
+    const isOpen = !panel.classList.contains('translate-x-full');
+
+    if (isOpen) {
+        panel.classList.add('translate-x-full');
+        overlay.classList.add('hidden');
+    } else {
+        panel.classList.remove('translate-x-full');
+        overlay.classList.remove('hidden');
+        // 首次打开时加载分类
+        if (!categoryCache) {
+            loadCategories();
+        }
+    }
+}
+
+// 从 KV 缓存 API 加载分类列表
+async function loadCategories() {
+    const container = document.getElementById('categoryList');
+    if (!container) return;
+
+    // 显示加载状态
+    container.innerHTML = `
+        <div class="flex justify-center items-center py-6">
+            <div class="flex flex-col items-center gap-3">
+                <div class="relative">
+                    <div class="w-10 h-10 border-3 border-sky-100 rounded-full"></div>
+                    <div class="absolute inset-0 w-10 h-10 border-3 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <span class="text-sky-600 text-sm font-medium">加载分类中...</span>
+            </div>
+        </div>
+    `;
+
+    try {
+        // 从 KV 缓存 API 获取分类
+        const response = await fetch('/api/categories');
+
+        if (!response.ok) {
+            throw new Error('分类数据未同步');
+        }
+
+        const data = await response.json();
+
+        if (!data.success || !data.list || data.list.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-400 py-8 text-sm">暂无分类数据，请先在后台同步</div>';
+            return;
+        }
+
+        // 从返回的 list 获取分类（已经在后端过滤过敏感分类）
+        const categories = data.list;
+
+        // 缓存原始分类数据
+        categoryCache = categories;
+
+        // 前端额外过滤（双重保险）
+        const banned = ['伦理片', '福利', '里番', '萝莉', '制服诱惑', '国产传媒', 'cosplay', '黑丝', '无码', '有码', 'SWAG', '网红主播', '色情', '同性', '福利', '国产动漫', '大陆综艺', '国产剧', '短剧', '大陆剧', '中国动漫'];
+
+        // 使用 API 返回的 type_pid 来分组（基于父分类ID）
+        // type_pid: 0 = 顶级分类, 1 = 电影, 2 = 连续剧, 3 = 综艺, 4 = 动漫
+        const grouped = {
+            movie: { icon: '🎬', name: '电影', items: [], pid: 1 },
+            tv: { icon: '📺', name: '连续剧', items: [], pid: 2 },
+            variety: { icon: '🎭', name: '综艺', items: [], pid: 3 },
+            anime: { icon: '🎌', name: '动漫', items: [], pid: 4 },
+            other: { icon: '📁', name: '其他', items: [] }
+        };
+
+        categories.forEach(cat => {
+            const name = cat.type_name || '';
+            const id = cat.type_id;
+            // 确保 pid 是数字类型
+            const pid = parseInt(cat.type_pid, 10) || 0;
+            if (!name || !id) return;
+
+            // 跳过顶级分类（type_pid: 0），只显示子分类
+            if (pid === 0) return;
+
+            // 过滤敏感分类（使用精确匹配或包含匹配）
+            if (banned.some(b => name === b || name.includes(b))) return;
+
+            // 根据 type_pid 分组
+            if (pid === 1) {
+                grouped.movie.items.push({ id, name });
+            } else if (pid === 2) {
+                grouped.tv.items.push({ id, name });
+            } else if (pid === 3) {
+                grouped.variety.items.push({ id, name });
+            } else if (pid === 4) {
+                grouped.anime.items.push({ id, name });
+            } else {
+                grouped.other.items.push({ id, name });
+            }
+        });
+
+        // 渲染分类
+        let html = '';
+        for (const [key, group] of Object.entries(grouped)) {
+            if (group.items.length === 0) continue;
+            html += `
+                <div class="space-y-3">
+                    <h4 class="text-sm font-semibold text-gray-600 flex items-center gap-2 pb-1 border-b border-sky-100/80">
+                        <span class="text-base">${group.icon}</span>
+                        <span class="bg-gradient-to-r from-sky-600 to-cyan-600 bg-clip-text text-transparent">${group.name}</span>
+                    </h4>
+                    <div class="flex flex-wrap gap-2.5">
+                        ${group.items.map(item => `
+                            <button onclick="searchByCategory(${item.id}, '${item.name.replace(/'/g, "\\'")}')" class="filter-btn">
+                                ${item.name}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html || '<div class="text-center text-gray-400 py-8 text-sm">暂无分类数据</div>';
+
+    } catch (error) {
+        console.error('加载分类失败:', error);
+        const errorMsg = error.name === 'AbortError' ? '加载超时' : (error.message || '加载失败');
+        container.innerHTML = `
+            <div class="text-center py-8">
+                <p class="text-gray-400 text-sm mb-2">${errorMsg}</p>
+                <button onclick="loadCategories()" class="text-sky-500 hover:text-sky-600 text-sm">点击重试</button>
+            </div>
+        `;
+    }
+}
+
+// 按分类搜索视频（支持翻页补齐：跨多页收集安全内容后再分页，支持瀑布流追加）
+// 用于记录分类当前已请求到的 API 页码
+let categoryApiPage = 0;
+let categoryHasMore = true;
+
+async function searchByCategory(typeId, typeName, page = 1, append = false) {
+    // 关闭分类面板（仅首次点击时）
+    if (page === 1) {
+        toggleCategoryPanel();
+        // 重置分类 API 页码状态
+        categoryApiPage = 0;
+        categoryHasMore = true;
+    }
+
+    // 更新分类状态
+    currentCategoryState = { typeId, typeName, page, totalPages: currentCategoryState.totalPages || 1 };
+
+    const container = document.getElementById('recentUpdates');
+    const recentUpdatesArea = document.getElementById('recentUpdatesArea');
+    const resultsArea = document.getElementById('resultsArea');
+    const resultsDiv = document.getElementById('results');
+    const loadingMoreEl = document.getElementById('recentLoadingMore');
+    const noMoreEl = document.getElementById('recentNoMore');
+
+    if (!container || !resultsDiv) return;
+
+    // 显示最近更新区域（分类筛选使用此区域）
+    if (recentUpdatesArea) recentUpdatesArea.classList.remove('hidden');
+
+    // 更新标题
+    const titleEl = recentUpdatesArea?.querySelector('h2');
+    if (titleEl) {
+        titleEl.textContent = typeName;
+    }
+    // 更新副标题（h2的父元素下的p）
+    const subtitleEl = titleEl?.parentElement?.querySelector('p');
+    if (subtitleEl) {
+        subtitleEl.textContent = '精选影视内容';
+    }
+
+    // 显示加载状态
+    if (append && page > 1) {
+        if (loadingMoreEl) {
+            loadingMoreEl.classList.remove('hidden');
+            // 更新已加载数量显示
+            const loadingCountText = document.getElementById('loadingCountText');
+            if (loadingCountText) {
+                loadingCountText.textContent = `已加载 ${loadedVideoCount} 条`;
+            }
+        }
+    } else {
+        if (noMoreEl) noMoreEl.classList.add('hidden');
+        container.innerHTML = `
+            <div class="col-span-full flex justify-center items-center py-16">
+                <div class="bg-white rounded-2xl p-8 shadow-lg flex flex-col items-center gap-4">
+                    <div class="relative">
+                        <div class="w-14 h-14 border-4 border-sky-100 rounded-full"></div>
+                        <div class="absolute inset-0 w-14 h-14 border-4 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
+                        <div class="absolute inset-2 w-10 h-10 border-4 border-cyan-300 border-b-transparent rounded-full animate-spin-reverse"></div>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-sky-600 font-medium">加载${typeName}中...</p>
+                        <p class="text-gray-400 text-sm mt-1">精彩内容即将呈现</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 隐藏搜索结果区域
+    if (resultsArea) resultsArea.classList.add('hidden');
+
+    try {
+        // 从 KV 缓存 API 获取分类视频
+        const limit = 40;
+        const response = await fetch(`/api/category/${typeId}?page=${page}&limit=${limit}`);
+
+        if (!response.ok) {
+            throw new Error('分类数据未同步');
+        }
+
+        const data = await response.json();
+
+        if (!data.success || !data.list || data.list.length === 0) {
+            if (page === 1) {
+                container.innerHTML = `<div class="col-span-full text-center text-gray-400 py-8">暂无${typeName}内容</div>`;
+            }
+            categoryHasMore = false;
+            currentCategoryState.totalPages = page;
+            updatePaginationUI();
+            updateLoadMoreUI();
+            return;
+        }
+
+        const safeItems = data.list;
+        const totalPages = data.totalPages || 1;
+
+        // 更新分页状态
+        categoryHasMore = page < totalPages;
+        currentCategoryState.totalPages = totalPages;
+        currentCategoryState.page = page;
+        updatePaginationUI();
+
+        // 使用第一个可用的 API 源 ID（用于点击详情时传递）
+        const apiId = selectedAPIs.length > 0 ? selectedAPIs[0] : Object.keys(API_SITES)[0];
+
+        // 渲染视频卡片
+        const cardsHtml = safeItems.map(item => {
+            const safeName = (item.vod_name || '未知').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const safeId = (item.vod_id || '').toString().replace(/"/g, '&quot;');
+            const hasCover = item.vod_pic && item.vod_pic.startsWith('http');
+
+            return `
+                <div class="video-card" onclick="showDetails('${safeId}','${safeName}','${apiId}')">
+                    <div class="poster-container">
+                        ${hasCover ? `
+                            <img src="${item.vod_pic}" alt="${safeName}"
+                                 onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'poster-placeholder\\'>🎬</div>';"
+                                 loading="lazy">
+                        ` : '<div class="poster-placeholder">🎬</div>'}
+                        <div class="play-overlay">
+                            <div class="play-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                            </div>
+                        </div>
+                        <div class="badge-container">
+                            <span class="badge">${(item.vod_remarks || '').toString().replace(/</g, '&lt;') || 'HD'}</span>
+                        </div>
+                    </div>
+                    <div class="card-info">
+                        <h3 class="card-title" title="${safeName}">${safeName}</h3>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        if (append && page > 1) {
+            container.insertAdjacentHTML('beforeend', cardsHtml);
+        } else {
+            container.innerHTML = cardsHtml;
+        }
+
+        // 更新"加载更多"按钮状态
+        updateLoadMoreUI();
+
+    } catch (error) {
+        console.error(`加载${typeName}失败:`, error);
+        const errorMsg = error.name === 'AbortError' ? '加载超时' : (error.message || '加载失败');
+        container.innerHTML = `
+            <div class="col-span-full text-center py-8">
+                <p class="text-gray-400 mb-2">${errorMsg}</p>
+                <button onclick="searchByCategory(${typeId}, '${typeName.replace(/'/g, "\\'")}')" class="text-sky-500 hover:text-sky-600 text-sm">点击重试</button>
+            </div>
+        `;
+	    } finally {
+	        if (loadingMoreEl) loadingMoreEl.classList.add('hidden');
+	    }
+	}
+
+// 首页初始化：加载推荐
+function initHomePage() {
+    const recentUpdatesArea = document.getElementById('recentUpdatesArea');
+    const noMoreEl = document.getElementById('recentNoMore');
+    const loadingMoreEl = document.getElementById('recentLoadingMore');
+    const loadMoreBtn = document.getElementById('recentLoadMoreBtn');
+    // 重置标题
+    const titleEl = recentUpdatesArea?.querySelector('h2');
+    if (titleEl) {
+        titleEl.textContent = '最近更新';
+    }
+    // 重置副标题（h2的父元素下的p）
+    const subtitleEl = titleEl?.parentElement?.querySelector('p');
+    if (subtitleEl) {
+        subtitleEl.textContent = '每日精选好片推荐';
+    }
+    // 显示最近更新区域
+    if (recentUpdatesArea) recentUpdatesArea.classList.remove('hidden');
+    if (noMoreEl) noMoreEl.classList.add('hidden');
+    if (loadingMoreEl) loadingMoreEl.classList.add('hidden');
+    if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
+    // 重置分类状态
+    currentCategoryState = { typeId: null, typeName: null, page: 1, totalPages: 1 };
+    // 回到顶部再加载
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    // 加载首页推荐
+    loadRecentUpdates(1, false);
+}
+
+// 重置回首页
+function resetToHome() {
+	    initHomePage();
+	    // 隐藏搜索结果
+	    const resultsArea = document.getElementById('resultsArea');
+	    if (resultsArea) resultsArea.classList.add('hidden');
+	    // 清空搜索框
+	    const searchInput = document.getElementById('searchInput');
+	    if (searchInput) searchInput.value = '';
+	}
+
+// 页面加载时自动加载推荐视频（如果不是搜索 URL）
+function maybeInitHomePage() {
+    // 检查是否是搜索 URL，如果是则跳过首页初始化
+    const path = window.location.pathname;
+    const urlParams = new URLSearchParams(window.location.search);
+    if (path.startsWith('/s=') || urlParams.get('s')) {
+        // 是搜索 URL，跳过首页初始化，由 index-page.js 处理搜索
+        return;
+    }
+    initHomePage();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', maybeInitHomePage);
+} else {
+    maybeInitHomePage();
 }
 
 // 移除Node.js的require语句，因为这是在浏览器环境中运行的

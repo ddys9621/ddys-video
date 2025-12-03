@@ -5,6 +5,35 @@
 
 // 从全局配置获取密码哈希（如果存在）
 let cachedPasswordHash = null;
+let hashFetchPromise = null;
+
+/**
+ * 从 cookie 中获取指定名称的值
+ */
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
+/**
+ * 从服务器获取密码哈希
+ */
+async function fetchAuthHash() {
+    try {
+        const response = await fetch('/api/auth-hash');
+        const data = await response.json();
+        if (data.success && data.hash) {
+            cachedPasswordHash = data.hash;
+            localStorage.setItem('proxyAuthHash', data.hash);
+            return data.hash;
+        }
+    } catch (error) {
+        console.error('获取密码哈希失败:', error);
+    }
+    return null;
+}
 
 /**
  * 获取当前会话的密码哈希
@@ -13,44 +42,31 @@ async function getPasswordHash() {
     if (cachedPasswordHash) {
         return cachedPasswordHash;
     }
-    
-    // 1. 优先从已存储的代理鉴权哈希获取
+
+    // 1. 优先从 cookie 获取
+    const cookieHash = getCookie('_auth_hash');
+    if (cookieHash) {
+        cachedPasswordHash = cookieHash;
+        localStorage.setItem('proxyAuthHash', cookieHash);
+        return cookieHash;
+    }
+
+    // 2. 从已存储的代理鉴权哈希获取
     const storedHash = localStorage.getItem('proxyAuthHash');
     if (storedHash) {
         cachedPasswordHash = storedHash;
         return storedHash;
     }
-    
-    // 2. 尝试从密码验证状态获取（password.js 验证后存储的哈希）
-    const passwordVerified = localStorage.getItem('passwordVerified');
-    const storedPasswordHash = localStorage.getItem('passwordHash');
-    if (passwordVerified === 'true' && storedPasswordHash) {
-        localStorage.setItem('proxyAuthHash', storedPasswordHash);
-        cachedPasswordHash = storedPasswordHash;
-        return storedPasswordHash;
+
+    // 3. 从服务器 API 获取（只请求一次）
+    if (!hashFetchPromise) {
+        hashFetchPromise = fetchAuthHash();
     }
-    
-    // 3. 尝试从用户输入的密码生成哈希
-    const userPassword = localStorage.getItem('userPassword');
-    if (userPassword) {
-        try {
-            // 动态导入 sha256 函数
-            const { sha256 } = await import('./sha256.js');
-            const hash = await sha256(userPassword);
-            localStorage.setItem('proxyAuthHash', hash);
-            cachedPasswordHash = hash;
-            return hash;
-        } catch (error) {
-            console.error('生成密码哈希失败:', error);
-        }
+    const hash = await hashFetchPromise;
+    if (hash) {
+        return hash;
     }
-    
-    // 4. 如果用户没有设置密码，尝试使用环境变量中的密码哈希
-    if (window.__ENV__ && window.__ENV__.PASSWORD) {
-        cachedPasswordHash = window.__ENV__.PASSWORD;
-        return window.__ENV__.PASSWORD;
-    }
-    
+
     return null;
 }
 
