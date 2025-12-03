@@ -1,22 +1,21 @@
+// 搜索功能 - 仅用于自定义 API
+// 内置搜索已改为后端 /api/search 处理
 async function searchByAPIAndKeyWord(apiId, query) {
     try {
         let apiUrl, apiName, apiBaseUrl;
-        
-        // 处理自定义API
+
+        // 仅处理自定义API（内置搜索走后端）
         if (apiId.startsWith('custom_')) {
             const customIndex = apiId.replace('custom_', '');
             const customApi = getCustomApiInfo(customIndex);
             if (!customApi) return [];
-            
+
             apiBaseUrl = customApi.url;
             apiUrl = apiBaseUrl + API_CONFIG.search.path + encodeURIComponent(query);
             apiName = customApi.name;
         } else {
-            // 内置API
-            if (!API_SITES[apiId]) return [];
-            apiBaseUrl = API_SITES[apiId].api;
-            apiUrl = apiBaseUrl + API_CONFIG.search.path + encodeURIComponent(query);
-            apiName = API_SITES[apiId].name;
+            // 非自定义 API，返回空（由后端处理）
+            return [];
         }
         
         // 添加超时处理

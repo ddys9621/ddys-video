@@ -1,10 +1,6 @@
 // 全局变量
-// 开发者固定配置的数据源列表（通过 window.ACTIVE_SOURCES 注入）
-// 用户在前端无法修改，只能由开发者在代码中调整
-const ACTIVE_SOURCES = (window.ACTIVE_SOURCES && Array.isArray(window.ACTIVE_SOURCES) && window.ACTIVE_SOURCES.length)
-    ? window.ACTIVE_SOURCES
-    : Object.keys(window.API_SITES || {});
-// 为兼容后续代码，仍然使用 selectedAPIs 变量名，但不再从 localStorage 读取
+// 数据源已统一由后端管理，前端不再需要配置
+const ACTIVE_SOURCES = window.ACTIVE_SOURCES || ['default'];
 let selectedAPIs = ACTIVE_SOURCES.slice();
 
 // 添加当前播放的集数索引
@@ -463,8 +459,8 @@ async function search() {
             console.error('更新浏览器历史失败:', e);
         }
 
-        // 使用第一个可用的 API 源 ID（用于点击详情时传递）
-        const apiId = selectedAPIs.length > 0 ? selectedAPIs[0] : Object.keys(API_SITES)[0];
+        // 使用默认 API 源 ID（详情由后端统一处理）
+        const apiId = 'default';
 
         // 添加XSS保护，使用textContent和属性转义
         const safeResults = allResults.map(item => {
@@ -1219,8 +1215,8 @@ async function loadRecentUpdates(page = 1, append = false) {
         recentUpdatesHasMore = false;
         updatePaginationUI();
 
-        // 使用第一个可用的 API 源 ID（用于点击详情时传递）
-        const apiId = selectedAPIs.length > 0 ? selectedAPIs[0] : Object.keys(API_SITES)[0];
+        // 使用默认 API 源 ID（详情由后端统一处理）
+        const apiId = 'default';
 
         // 渲染视频卡片
         const cardsHtml = safeItems.map(item => {
@@ -1572,8 +1568,8 @@ async function searchByCategory(typeId, typeName, page = 1, append = false) {
         currentCategoryState.page = page;
         updatePaginationUI();
 
-        // 使用第一个可用的 API 源 ID（用于点击详情时传递）
-        const apiId = selectedAPIs.length > 0 ? selectedAPIs[0] : Object.keys(API_SITES)[0];
+        // 使用默认 API 源 ID（详情由后端统一处理）
+        const apiId = 'default';
 
         // 渲染视频卡片
         const cardsHtml = safeItems.map(item => {

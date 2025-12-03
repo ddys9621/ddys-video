@@ -1,14 +1,12 @@
 // 全局常量配置
-const PROXY_URL = '/proxy/';    // 适用于 Cloudflare, Netlify (带重写), Vercel (带重写)
-// const HOPLAYER_URL = 'https://hoplayer.com/index.html';
+const PROXY_URL = '/proxy/';    // 代理路径
 const SEARCH_HISTORY_KEY = 'videoSearchHistory';
 const MAX_HISTORY_ITEMS = 5;
 
 // 密码保护配置
-// 注意：PASSWORD 环境变量是必需的，所有部署都必须设置密码以确保安全
 const PASSWORD_CONFIG = {
-    localStorageKey: 'passwordVerified',  // 存储验证状态的键名
-    verificationTTL: 90 * 24 * 60 * 60 * 1000  // 验证有效期（90天，约3个月）
+    localStorageKey: 'passwordVerified',
+    verificationTTL: 90 * 24 * 60 * 60 * 1000  // 验证有效期（90天）
 };
 
 // 网站信息配置
@@ -20,52 +18,21 @@ const SITE_CONFIG = {
     version: '1.0.0'
 };
 
-// API站点配置
-const API_SITES = {
-    ffzy: {
-        api: 'https://subocj.com/api.php/provide/vod/',
-        name: '低端影视',
-        adult: false
-    }
-    //ARCHIVE https://telegra.ph/APIs-08-12
-};
-
-// 定义合并方法
-function extendAPISites(newSites) {
-    Object.assign(API_SITES, newSites);
-}
-
-// 暴露到全局
-window.API_SITES = API_SITES;
-window.extendAPISites = extendAPISites;
-
-
-// 添加聚合搜索的配置选项
-const AGGREGATED_SEARCH_CONFIG = {
-    enabled: true,             // 是否启用聚合搜索
-    timeout: 8000,            // 单个源超时时间（毫秒）
-    maxResults: 10000,          // 最大结果数量
-    parallelRequests: true,   // 是否并行请求所有源
-    showSourceBadges: true    // 是否显示来源徽章
-};
-
-// 抽象API请求配置
+// 自定义 API 请求配置（仅用于自定义源）
 const API_CONFIG = {
     search: {
-        // 只拼接参数部分，不再包含 /api.php/provide/vod/
         path: '?ac=videolist&wd=',
         pagePath: '?ac=videolist&wd={query}&pg={page}',
-        maxPages: 50, // 最大获取页数
+        maxPages: 50,
         headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': 'application/json'
         }
     },
     detail: {
-        // 只拼接参数部分
         path: '?ac=videolist&ids=',
         headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': 'application/json'
         }
     }
@@ -107,17 +74,13 @@ const SECURITY_CONFIG = {
     // allowedApiDomains 不再需要，因为所有请求都通过内部代理
 };
 
-// 添加多个自定义API源的配置
+// 自定义API源配置
 const CUSTOM_API_CONFIG = {
-    separator: ',',           // 分隔符
-    maxSources: 5,            // 最大允许的自定义源数量
-    testTimeout: 5000,        // 测试超时时间(毫秒)
-    namePrefix: 'Custom-',    // 自定义源名称前缀
-    validateUrl: true,        // 验证URL格式
-    cacheResults: true,       // 缓存测试结果
-    cacheExpiry: 5184000000,  // 缓存过期时间(2个月)
-    adultPropName: 'isAdult' // 用于标记成人内容的属性名
+    separator: ',',
+    maxSources: 5,
+    testTimeout: 5000,
+    namePrefix: 'Custom-',
+    validateUrl: true,
+    cacheResults: true,
+    cacheExpiry: 5184000000
 };
-
-// 隐藏内置黄色采集站API的变量
-const HIDE_BUILTIN_ADULT_APIS = false;

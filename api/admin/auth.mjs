@@ -5,8 +5,7 @@ function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-// 简单的内存 session 存储（生产环境可以用 KV）
-// 注意：Serverless 环境下内存不持久，这里用 cookie 签名方案
+// Token 签名
 function signToken(token, secret) {
   const hmac = crypto.createHmac('sha256', secret);
   hmac.update(token);
@@ -14,6 +13,20 @@ function signToken(token, secret) {
 }
 
 export default async function handler(req, res) {
+  const action = req.query.action || 'login';
+
+  // 登出
+  if (action === 'logout') {
+    res.setHeader('Set-Cookie', [
+      'admin_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'
+    ]);
+    return res.status(200).json({
+      success: true,
+      message: '已退出登录'
+    });
+  }
+
+  // 登录
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
