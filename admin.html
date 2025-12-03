@@ -591,8 +591,25 @@
                     addLog(`网络错误: ${e.message}`, 'error');
                 }
                 result.classList.remove('hidden');
-            } else if (shouldStop) {
-                result.textContent = `⏹️ 同步已停止，已完成 ${syncedCategories.length} 个分类`;
+            } else if (shouldStop && syncedCategories.length > 0) {
+                // 停止时也保存已同步的数据
+                addLog(`正在保存已同步的 ${syncedCategories.length} 个分类...`, 'warning');
+                try {
+                    const res = await fetch('/api/admin/sync?action=finalize', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ syncedCategories })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        result.textContent = `⏹️ 同步已停止，已保存 ${data.totalVideos} 条视频（${syncedCategories.length} 个分类）`;
+                        addLog(`已保存 ${data.totalVideos} 条视频`, 'success');
+                    } else {
+                        result.textContent = `⏹️ 同步已停止，保存失败: ${data.error}`;
+                    }
+                } catch (e) {
+                    result.textContent = `⏹️ 同步已停止，保存失败`;
+                }
                 result.className = 'mt-4 text-sm text-orange-400';
                 result.classList.remove('hidden');
             }
