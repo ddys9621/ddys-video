@@ -476,12 +476,13 @@
                 if (shouldStop) break;
 
                 const cat = selected[i];
-                const percent = Math.round((i / selected.length) * 100);
+                // 开始时显示当前进度
+                const startPercent = Math.round((i / selected.length) * 100);
 
-                document.getElementById('batchStatus').textContent = `正在同步: ${cat.type_name}`;
-                document.getElementById('batchPercent').textContent = `${percent}%`;
-                document.getElementById('batchBar').style.width = `${percent}%`;
-                document.getElementById('batchDetail').textContent = `进度: ${i + 1}/${selected.length} 分类`;
+                document.getElementById('batchStatus').textContent = `正在同步: ${cat.type_name} (${i + 1}/${selected.length})`;
+                document.getElementById('batchPercent').textContent = `${startPercent}%`;
+                document.getElementById('batchBar').style.width = `${startPercent}%`;
+                document.getElementById('batchDetail').textContent = `请稀等，正在抓取数据...`;
 
                 try {
                     const res = await fetch('/api/admin/sync?action=category', {
@@ -494,10 +495,17 @@
                     if (data.success) {
                         syncedCategories.push(cat);
                         totalVideos += data.count;
-                        document.getElementById('batchDetail').textContent = `${cat.type_name}: ${data.count} 条视频, ${data.pages} 页`;
+                        // 完成后更新进度
+                        const endPercent = Math.round(((i + 1) / selected.length) * 100);
+                        document.getElementById('batchPercent').textContent = `${endPercent}%`;
+                        document.getElementById('batchBar').style.width = `${endPercent}%`;
+                        document.getElementById('batchDetail').textContent = `✅ ${cat.type_name}: ${data.count} 条视频`;
+                    } else {
+                        document.getElementById('batchDetail').textContent = `❌ ${cat.type_name}: ${data.error || '同步失败'}`;
                     }
                 } catch (e) {
                     console.error(`同步 ${cat.type_name} 失败:`, e);
+                    document.getElementById('batchDetail').textContent = `❌ ${cat.type_name}: 网络错误`;
                 }
             }
 
