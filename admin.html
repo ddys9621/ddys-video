@@ -142,19 +142,26 @@
                 <p id="filterResult" class="mt-3 text-sm hidden"></p>
             </div>
 
-            <!-- 操作区域 -->
+            <!-- 分类选择与同步 -->
             <div class="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-6 border border-slate-700">
                 <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
-                    <span>⚡</span> 数据操作
+                    <span>⚡</span> 分类同步
                 </h2>
-                <p class="text-slate-400 mb-4">同步数据、停止同步或清空所有缓存数据。</p>
-                <div class="flex flex-wrap gap-3">
-                    <button onclick="handleSync()" id="syncBtn"
-                        class="px-6 py-3 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 text-white rounded-xl font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span id="syncIcon">🔄</span>
-                        <span id="syncText">立即同步</span>
+                <p class="text-slate-400 mb-4">选择要同步的分类，分批抓取数据。</p>
+
+                <!-- 操作按钮 -->
+                <div class="flex flex-wrap gap-3 mb-4">
+                    <button onclick="fetchCategories()" id="fetchCatBtn"
+                        class="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl font-medium transition-all flex items-center gap-2 disabled:opacity-50">
+                        <span>📋</span>
+                        <span>获取分类</span>
                     </button>
-                    <button onclick="handleStopSync()" id="stopBtn"
+                    <button onclick="startBatchSync()" id="batchSyncBtn"
+                        class="hidden px-6 py-3 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 text-white rounded-xl font-medium transition-all flex items-center gap-2 disabled:opacity-50">
+                        <span>🚀</span>
+                        <span>开始同步</span>
+                    </button>
+                    <button onclick="stopBatchSync()" id="stopSyncBtn"
                         class="hidden px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-medium transition-all flex items-center gap-2">
                         <span>⏹️</span>
                         <span>停止同步</span>
@@ -165,6 +172,31 @@
                         <span>清空数据</span>
                     </button>
                 </div>
+
+                <!-- 分类列表 -->
+                <div id="categorySection" class="hidden">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-slate-400">选择要同步的分类 (<span id="selectedCount">0</span>/<span id="totalSelectable">0</span>)</span>
+                        <div class="flex gap-2">
+                            <button onclick="selectAll(true)" class="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg">全选</button>
+                            <button onclick="selectAll(false)" class="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg">取消全选</button>
+                        </div>
+                    </div>
+                    <div id="categoryList" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-64 overflow-y-auto p-2 bg-slate-900/50 rounded-xl"></div>
+                </div>
+
+                <!-- 同步进度 -->
+                <div id="batchProgress" class="hidden mt-4">
+                    <div class="flex justify-between text-sm mb-2">
+                        <span id="batchStatus">准备中...</span>
+                        <span id="batchPercent">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-700 rounded-full h-3">
+                        <div id="batchBar" class="bg-gradient-to-r from-sky-500 to-cyan-500 h-3 rounded-full progress-bar" style="width: 0%"></div>
+                    </div>
+                    <p id="batchDetail" class="text-xs text-slate-400 mt-2"></p>
+                </div>
+
                 <p id="syncResult" class="mt-4 text-sm hidden"></p>
             </div>
         </main>
@@ -290,11 +322,9 @@
             document.getElementById('videosCount').textContent = p.videosCount || 0;
         }
 
-        // 显示/隐藏进度
+        // 显示/隐藏进度（旧版进度条）
         function showProgress(show) {
             document.getElementById('progressSection').classList.toggle('hidden', !show);
-            document.getElementById('stopBtn').classList.toggle('hidden', !show);
-            document.getElementById('syncBtn').classList.toggle('hidden', show);
         }
 
         // 保存数据源
@@ -349,52 +379,175 @@
             setTimeout(() => el.classList.add('hidden'), 5000);
         }
 
-        // 执行同步
-        async function handleSync() {
-            const btn = document.getElementById('syncBtn');
+        // 分类数据
+        let allCategories = [];
+        let shouldStop = false;
+
+        // 获取分类列表
+        async function fetchCategories() {
+            const btn = document.getElementById('fetchCatBtn');
             const result = document.getElementById('syncResult');
-
             btn.disabled = true;
-            isSyncing = true;
-            showProgress(true);
-            result.classList.add('hidden');
-
-            // 开始轮询进度
-            progressInterval = setInterval(loadStatus, 2000);
+            btn.innerHTML = '<span class="loading">⏳</span> 获取中...';
 
             try {
-                const res = await fetch('/api/admin/sync', { method: 'POST' });
+                const res = await fetch('/api/admin/sync?action=categories');
                 const data = await res.json();
 
                 if (data.success) {
-                    result.textContent = `✅ 同步成功！共 ${data.totalVideos} 条视频，${data.categories} 个分类，耗时 ${(data.duration/1000).toFixed(1)} 秒`;
-                    result.className = 'mt-4 text-sm text-green-400';
-                } else if (data.stopped) {
-                    result.textContent = '⏹️ 同步已停止';
-                    result.className = 'mt-4 text-sm text-orange-400';
+                    allCategories = data.categories;
+                    renderCategories();
+                    document.getElementById('categorySection').classList.remove('hidden');
+                    document.getElementById('batchSyncBtn').classList.remove('hidden');
+                    document.getElementById('totalSelectable').textContent = data.selectable;
+                    updateSelectedCount();
+                    showResult(result, `获取到 ${data.total} 个分类，${data.selectable} 个可同步`, true);
                 } else {
-                    result.textContent = `❌ 同步失败: ${data.error}`;
+                    showResult(result, data.error, false);
+                }
+            } catch (e) {
+                showResult(result, '网络错误: ' + e.message, false);
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<span>📋</span> 获取分类';
+        }
+
+        // 渲染分类列表
+        function renderCategories() {
+            const container = document.getElementById('categoryList');
+            container.innerHTML = allCategories.map(cat => {
+                const disabled = !cat.selectable;
+                const label = cat.isParent ? '(父级)' : cat.isBanned ? '(已过滤)' : '';
+                return `
+                    <label class="flex items-center gap-2 p-2 rounded-lg ${disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-700/50 cursor-pointer'}">
+                        <input type="checkbox" data-id="${cat.type_id}" data-name="${cat.type_name}"
+                            ${disabled ? 'disabled' : 'checked'}
+                            onchange="updateSelectedCount()"
+                            class="w-4 h-4 rounded bg-slate-600 border-slate-500 text-sky-500 focus:ring-sky-500">
+                        <span class="text-sm truncate">${cat.type_name} <span class="text-xs text-slate-500">${label}</span></span>
+                    </label>
+                `;
+            }).join('');
+        }
+
+        // 全选/取消全选
+        function selectAll(checked) {
+            document.querySelectorAll('#categoryList input[type="checkbox"]:not(:disabled)').forEach(cb => cb.checked = checked);
+            updateSelectedCount();
+        }
+
+        // 更新已选数量
+        function updateSelectedCount() {
+            const count = document.querySelectorAll('#categoryList input[type="checkbox"]:checked').length;
+            document.getElementById('selectedCount').textContent = count;
+        }
+
+        // 获取选中的分类
+        function getSelectedCategories() {
+            const checkboxes = document.querySelectorAll('#categoryList input[type="checkbox"]:checked');
+            return Array.from(checkboxes).map(cb => ({
+                type_id: cb.dataset.id,
+                type_name: cb.dataset.name
+            }));
+        }
+
+        // 开始分批同步
+        async function startBatchSync() {
+            const selected = getSelectedCategories();
+            if (selected.length === 0) {
+                alert('请至少选择一个分类');
+                return;
+            }
+
+            shouldStop = false;
+            isSyncing = true;
+            document.getElementById('batchSyncBtn').classList.add('hidden');
+            document.getElementById('stopSyncBtn').classList.remove('hidden');
+            document.getElementById('batchProgress').classList.remove('hidden');
+            document.getElementById('fetchCatBtn').disabled = true;
+
+            const result = document.getElementById('syncResult');
+            result.classList.add('hidden');
+            const syncedCategories = [];
+            let totalVideos = 0;
+
+            for (let i = 0; i < selected.length; i++) {
+                if (shouldStop) break;
+
+                const cat = selected[i];
+                const percent = Math.round((i / selected.length) * 100);
+
+                document.getElementById('batchStatus').textContent = `正在同步: ${cat.type_name}`;
+                document.getElementById('batchPercent').textContent = `${percent}%`;
+                document.getElementById('batchBar').style.width = `${percent}%`;
+                document.getElementById('batchDetail').textContent = `进度: ${i + 1}/${selected.length} 分类`;
+
+                try {
+                    const res = await fetch('/api/admin/sync?action=category', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ categoryId: cat.type_id, categoryName: cat.type_name })
+                    });
+                    const data = await res.json();
+
+                    if (data.success) {
+                        syncedCategories.push(cat);
+                        totalVideos += data.count;
+                        document.getElementById('batchDetail').textContent = `${cat.type_name}: ${data.count} 条视频, ${data.pages} 页`;
+                    }
+                } catch (e) {
+                    console.error(`同步 ${cat.type_name} 失败:`, e);
+                }
+            }
+
+            // 完成同步，生成索引
+            if (syncedCategories.length > 0 && !shouldStop) {
+                document.getElementById('batchStatus').textContent = '正在生成索引...';
+                document.getElementById('batchPercent').textContent = '99%';
+                document.getElementById('batchBar').style.width = '99%';
+
+                try {
+                    const res = await fetch('/api/admin/sync?action=finalize', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ syncedCategories })
+                    });
+                    const data = await res.json();
+
+                    if (data.success) {
+                        document.getElementById('batchPercent').textContent = '100%';
+                        document.getElementById('batchBar').style.width = '100%';
+                        result.textContent = `✅ 同步完成！共 ${data.totalVideos} 条视频，${data.categories} 个分类`;
+                        result.className = 'mt-4 text-sm text-green-400';
+                    } else {
+                        result.textContent = `❌ 生成索引失败: ${data.error}`;
+                        result.className = 'mt-4 text-sm text-red-400';
+                    }
+                } catch (e) {
+                    result.textContent = `❌ 网络错误: ${e.message}`;
                     result.className = 'mt-4 text-sm text-red-400';
                 }
                 result.classList.remove('hidden');
-            } catch (err) {
-                result.textContent = `❌ 网络错误: ${err.message}`;
-                result.className = 'mt-4 text-sm text-red-400';
+            } else if (shouldStop) {
+                result.textContent = `⏹️ 同步已停止，已完成 ${syncedCategories.length} 个分类`;
+                result.className = 'mt-4 text-sm text-orange-400';
                 result.classList.remove('hidden');
             }
 
-            clearInterval(progressInterval);
+            // 重置 UI
             isSyncing = false;
-            btn.disabled = false;
-            showProgress(false);
+            document.getElementById('batchSyncBtn').classList.remove('hidden');
+            document.getElementById('stopSyncBtn').classList.add('hidden');
+            document.getElementById('fetchCatBtn').disabled = false;
+            document.getElementById('batchStatus').textContent = '同步完成';
             loadStatus();
         }
 
         // 停止同步
-        async function handleStopSync() {
-            try {
-                await fetch('/api/admin/settings?action=stop', { method: 'POST' });
-            } catch (e) { console.error(e); }
+        function stopBatchSync() {
+            shouldStop = true;
+            document.getElementById('batchStatus').textContent = '正在停止...';
         }
 
         // 清空数据

@@ -87,15 +87,36 @@ export default async function handler(req, res) {
 
       // 清空数据
       if (action === 'clear') {
-        const keysToDelete = ['sync-status', 'categories', 'home-data', 'search-index', 'sync-control'];
-        const categories = await kv.get('categories');
-        if (categories?.list) {
-          for (const cat of categories.list) keysToDelete.push(`category:${cat.type_id}`);
+        let deletedCount = 0;
+
+        // 1. 删除固定的键
+        const fixedKeys = ['sync-status', 'categories', 'home-data', 'search-index', 'sync-control', 'sync-progress'];
+        for (const key of fixedKeys) {
+          try {
+            await kv.del(key);
+            deletedCount++;
+          } catch (e) { }
         }
-        for (const key of keysToDelete) {
-          try { await kv.del(key); } catch (e) { console.error(`删除 ${key} 失败`); }
+
+        // 2. 扫描并删除所有 category:* 键
+        try {
+          let cursor = 0;
+          do {
+            const result = await kv.scan(cursor, { match: 'category:*', count: 100 });
+            cursor = result[0];
+            const keys = result[1];
+            for (const key of keys) {
+              try {
+                await kv.del(key);
+                deletedCount++;
+              } catch (e) { }
+            }
+          } while (cursor !== 0);
+        } catch (e) {
+          console.error('扫描 category:* 键失败:', e.message);
         }
-        return res.status(200).json({ success: true, message: `已清空 ${keysToDelete.length} 项数据` });
+
+        return res.status(200).json({ success: true, message: `已清空 ${deletedCount} 项数据` });
       }
 
       return res.status(400).json({ success: false, error: '无效的操作' });
